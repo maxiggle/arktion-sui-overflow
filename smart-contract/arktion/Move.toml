@@ -6,4 +6,4 @@ edition = "2024"
 [dependencies]
 
 [addresses]
-arktion = "0x0"
+arktion = "0x18fdcc9d94ca3644c768730de7e4d4731e0af7f230e3c4dfa792e6e28577ed90"

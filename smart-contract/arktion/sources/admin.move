@@ -129,6 +129,13 @@ public fun revoke(
     });
 }
 
+// ===== Test helpers =====
+
+#[test_only]
+public fun init_for_testing(ctx: &mut TxContext) {
+    init(ctx);
+}
+
 // ===== Read-only helpers =====
 
 /// Returns true if `addr` is a currently registered admin.
