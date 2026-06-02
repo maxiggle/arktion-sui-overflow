@@ -1,0 +1,268 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id            String    @id @default(uuid())
+  walletAddress String    @unique @map("wallet_address")
+  email         String?   @unique
+  displayName   String?   @map("display_name")
+  avatarUrl     String?   @map("avatar_url")
+
+  
+  
+  zkLoginSalt   String    @map("zklogin_salt")
+
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
+
+  passport          Passport?
+  readingRecords    ReadingRecord[]
+  journalEntries    JournalEntry[]
+  submissions       Submission[]
+  inkLedger         InkLedgerEntry[]
+  inkBalance        InkBalance?
+  badgesEarned      BadgeEarned[]
+  sessions          Session[]
+  earningRecords    EarningRecord[]
+
+  @@index([walletAddress])
+  @@index([email])
+  @@map("users")
+}
+
+model Session {
+  id            String   @id @default(uuid())
+  userId        String   @map("user_id")
+  jwtTokenHash  String   @unique @map("jwt_token_hash")
+  expiresAt     DateTime @map("expires_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+
+
+
+
+model Passport {
+  id              String   @id @default(uuid())
+  userId          String   @unique @map("user_id")
+  suiObjectId     String   @unique @map("sui_object_id")
+  level           Int      @default(1)
+  totalInkEarned  BigInt   @default(0) @map("total_ink_earned")
+  chaptersRead    Int      @default(0) @map("chapters_read")
+  seriesCompleted Int      @default(0) @map("series_completed")
+  seriesTracked   Int      @default(0) @map("series_tracked")
+  identityBlobId  String?  @map("identity_blob_id")
+  lastSyncedAt    DateTime @default(now()) @map("last_synced_at")
+
+  user            User     @relation(fields: [userId], references: [id])
+
+  @@index([suiObjectId])
+  @@map("passports")
+}
+
+
+
+
+
+model Series {
+  id              String    @id @default(uuid())
+  externalId      String    @unique @map("external_id")
+  title           String
+  formatType      Int       @map("format_type")
+  sourceLanguage  String    @map("source_language")
+  coverUrl        String?   @map("cover_url")
+  description     String?   @db.Text
+  status          String    @default("ongoing")
+  metadataBlobId  String?   @map("metadata_blob_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
+
+  readingRecords  ReadingRecord[]
+  badgesEarned    BadgeEarned[]
+
+  @@index([externalId])
+  @@index([title])
+  @@map("series")
+}
+
+
+
+
+
+model ReadingRecord {
+  id              String    @id @default(uuid())
+  userId          String    @map("user_id")
+  seriesId        String    @map("series_id")
+  status          Int       @default(0)
+  currentChapter  Int       @default(0) @map("current_chapter")
+  lastReadAt      DateTime  @default(now()) @map("last_read_at")
+  completedAt     DateTime? @map("completed_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  user            User      @relation(fields: [userId], references: [id])
+  series          Series    @relation(fields: [seriesId], references: [id])
+
+  @@unique([userId, seriesId])
+  @@index([userId, status])
+  @@index([seriesId])
+  @@map("reading_records")
+}
+
+
+
+
+
+model JournalEntry {
+  id                    String   @id @default(uuid())
+  userId                String   @map("user_id")
+  entryId               String   @map("entry_id")
+  externalTitle         String   @map("external_title")
+  formatType            Int      @map("format_type")
+  externalUrl           String   @map("external_url")
+  totalChapters         Int      @default(0) @map("total_chapters")
+  currentChapter        Int      @default(0) @map("current_chapter")
+  notes                 String?  @db.Text
+  submittedAsSuggestion Boolean  @default(false) @map("submitted_as_suggestion")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  user                  User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, entryId])
+  @@index([userId])
+  @@map("journal_entries")
+}
+
+
+
+
+
+model Submission {
+  id              String    @id @default(uuid())
+  submitterId     String    @map("submitter_id")
+  suiObjectId     String    @unique @map("sui_object_id")
+  title           String
+  formatType      Int       @map("format_type")
+  externalUrl     String    @map("external_url")
+  suggestedSource String    @map("suggested_source")
+  status          Int       @default(0)
+  reviewedAt      DateTime? @map("reviewed_at")
+  rewardClaimed   Boolean   @default(false) @map("reward_claimed")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  submitter       User      @relation(fields: [submitterId], references: [id])
+
+  @@index([submitterId])
+  @@index([status])
+  @@index([suiObjectId])
+  @@map("submissions")
+}
+
+
+
+
+
+model InkLedgerEntry {
+  id             String   @id @default(uuid())
+  userId         String   @map("user_id")
+  actionType     Int      @map("action_type")
+  amount         BigInt
+  idempotencyKey String   @unique @map("idempotency_key")
+  suiTxDigest    String?  @map("sui_tx_digest")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  user           User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([idempotencyKey])
+  @@map("ink_ledger_entries")
+}
+
+model InkBalance {
+  userId        String   @id @map("user_id")
+  balance       BigInt   @default(0)
+  lastUpdatedAt DateTime @default(now()) @map("last_updated_at")
+
+  user          User     @relation(fields: [userId], references: [id])
+
+  @@map("ink_balances")
+}
+
+
+
+
+
+model EarningRecord {
+  id             String   @id @default(uuid())
+  userId         String   @map("user_id")
+  suiObjectId    String   @unique @map("sui_object_id")
+  idempotencyKey String   @unique @map("idempotency_key")
+  triggerType    Int      @map("trigger_type")
+  amount         BigInt
+  earnedAt       DateTime @default(now()) @map("earned_at")
+
+  user           User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("earning_records")
+}
+
+
+model BadgeEarned {
+  id             String   @id @default(uuid())
+  userId         String   @map("user_id")
+  suiObjectId    String   @unique @map("sui_object_id")
+  category       Int
+  badgeType      Int      @map("badge_type")
+  seriesId       String?  @map("series_id")
+  tier           Int      @default(0)
+  metadataBlobId String   @map("metadata_blob_id")
+  awardedAt      DateTime @default(now()) @map("awarded_at")
+
+  user           User     @relation(fields: [userId], references: [id])
+  series         Series?  @relation(fields: [seriesId], references: [id])
+
+  
+  @@unique([userId, category, badgeType, seriesId])
+  @@index([userId])
+  @@map("badges_earned")
+}
+
+
+
+model IdempotencyKey {
+  key        String   @id
+  scope      String
+  userId     String?  @map("user_id")
+  resourceId String?  @map("resource_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([scope])
+  @@map("idempotency_keys")
+}
+
+model AdminActionLog {
+  id           String   @id @default(uuid())
+  adminAddress String   @map("admin_address")
+  actionType   String   @map("action_type")
+  targetId     String?  @map("target_id")
+  notes        String?  @db.Text
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([adminAddress])
+  @@index([actionType])
+  @@map("admin_action_logs")
+}
