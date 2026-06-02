@@ -95,7 +95,7 @@ public fun init_for_testing(ctx: &mut TxContext) {
 /// The idempotency check happens before minting (step 3 before step 4) so that
 /// a failed mint cannot leave a locked key with no corresponding coins issued.
 public fun earn(
-    _cap: &AdminCap,
+    cap: &AdminCap,
     treasury: &mut TreasuryCap<INK>,
     registry: &mut EarningRegistry,
     user_address: address,
@@ -115,7 +115,7 @@ public fun earn(
     // consumed and the transaction rolls back atomically, so no partial state.
     dynamic_field::add(&mut registry.id, idempotency_key, true);
 
-    ink::mint(_cap, treasury, amount, user_address, ctx);
+    ink::mint(cap, treasury, amount, user_address, ctx);
 
     let record = EarningRecord {
         id: object::new(ctx),
@@ -148,3 +148,9 @@ fun get_amount_for_trigger(trigger_type: u8): u64 {
         abort EInvalidTriggerType
     }
 }
+
+// ===== Trigger constants exposed for cross-module use =====
+
+public fun trigger_chapter_read(): u8 { CHAPTER_READ }
+public fun trigger_series_complete(): u8 { SERIES_COMPLETE }
+public fun trigger_submission_approved(): u8 { SUBMISSION_APPROVED }

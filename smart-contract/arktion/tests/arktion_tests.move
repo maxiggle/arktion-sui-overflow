@@ -7,7 +7,8 @@ use arktion::ink::{Self, INK};
 use arktion::ink_earning::{Self, EarningRegistry, EarningRecord};
 use arktion::reading_history::{Self, UserLibrary};
 use arktion::journal::{Self, UserJournal};
-use arktion::series_badges::{Self, SeriesBadge};
+use arktion::badges::{Self, ArktionBadge, BadgeRegistry};
+use arktion::submission::{Self, Submission};
 use sui::coin::{Coin, TreasuryCap};
 use sui::test_scenario;
 
@@ -19,11 +20,26 @@ const USER: address = @0xBEEF;
 // ─── Shared setup helpers ─────────────────────────────────────────────────────
 
 /// Init admin + ink + ink_earning in a single transaction.
-/// Call this inside the first {} block of a scenario, then advance with next_tx.
+/// Call inside the first {} block of a scenario, then advance with next_tx.
 fun setup_ink_earn(scenario: &mut test_scenario::Scenario) {
     admin::init_for_testing(scenario.ctx());
     ink::init_for_testing(scenario.ctx());
     ink_earning::init_for_testing(scenario.ctx());
+}
+
+/// Init admin + badges. Used by tests that only touch the badges module.
+fun setup_badges(scenario: &mut test_scenario::Scenario) {
+    admin::init_for_testing(scenario.ctx());
+    badges::init_for_testing(scenario.ctx());
+}
+
+/// Init everything needed for end-to-end submission tests:
+/// admin + ink + ink_earning + badges.
+fun setup_full_stack(scenario: &mut test_scenario::Scenario) {
+    admin::init_for_testing(scenario.ctx());
+    ink::init_for_testing(scenario.ctx());
+    ink_earning::init_for_testing(scenario.ctx());
+    badges::init_for_testing(scenario.ctx());
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -89,8 +105,7 @@ fun test_admin_grant_duplicate_aborts() {
     {
         let cap = s.take_from_sender<AdminCap>();
         let mut registry = s.take_shared<AdminRegistry>();
-        // ADMIN is already in the registry from init
-        admin::grant(&cap, ADMIN, &mut registry, s.ctx());
+        admin::grant(&cap, ADMIN, &mut registry, s.ctx()); // ADMIN is already in registry
         test_scenario::return_shared(registry);
         s.return_to_sender(cap);
     };
@@ -126,7 +141,6 @@ fun test_passport_mint_default_fields() {
         passport::mint(&cap, USER, s.ctx());
         s.return_to_sender(cap);
     };
-    // Passport is soul-bound to USER; advance as USER to inspect it
     s.next_tx(USER);
     {
         let p = s.take_from_sender<ArktionPassport>();
@@ -149,14 +163,13 @@ fun test_passport_level_thresholds() {
     s.next_tx(ADMIN);
     {
         let cap = s.take_from_sender<AdminCap>();
-        passport::mint(&cap, ADMIN, s.ctx()); // mint to ADMIN so same tx can mutate it
+        passport::mint(&cap, ADMIN, s.ctx());
         s.return_to_sender(cap);
     };
     s.next_tx(ADMIN);
     {
         let cap = s.take_from_sender<AdminCap>();
         let mut p = s.take_from_sender<ArktionPassport>();
-        // Boundary at each threshold
         passport::update_stats(&cap, &mut p, 0, 0, 0, 499);   assert!(passport::level(&p) == 1);
         passport::update_stats(&cap, &mut p, 0, 0, 0, 500);   assert!(passport::level(&p) == 2);
         passport::update_stats(&cap, &mut p, 0, 0, 0, 2000);  assert!(passport::level(&p) == 3);
@@ -185,6 +198,56 @@ fun test_passport_set_blob_id() {
         let mut p = s.take_from_sender<ArktionPassport>();
         passport::set_blob_id(&cap, &mut p, b"walrus-blob-123", s.ctx());
         assert!(passport::identity_snapshot_blob_id(&p).is_some());
+        s.return_to_sender(p);
+        s.return_to_sender(cap);
+    };
+    s.end();
+}
+
+#[test]
+fun test_passport_blob_id_overwrites() {
+    let mut s = test_scenario::begin(ADMIN);
+    { admin::init_for_testing(s.ctx()); };
+    s.next_tx(ADMIN);
+    {
+        let cap = s.take_from_sender<AdminCap>();
+        passport::mint(&cap, ADMIN, s.ctx());
+        s.return_to_sender(cap);
+    };
+    s.next_tx(ADMIN);
+    {
+        let cap = s.take_from_sender<AdminCap>();
+        let mut p = s.take_from_sender<ArktionPassport>();
+        passport::set_blob_id(&cap, &mut p, b"blob-v1", s.ctx());
+        assert!(*passport::identity_snapshot_blob_id(&p).borrow() == b"blob-v1");
+        passport::set_blob_id(&cap, &mut p, b"blob-v2", s.ctx());
+        assert!(*passport::identity_snapshot_blob_id(&p).borrow() == b"blob-v2");
+        s.return_to_sender(p);
+        s.return_to_sender(cap);
+    };
+    s.end();
+}
+
+#[test]
+fun test_passport_update_stats_all_fields() {
+    let mut s = test_scenario::begin(ADMIN);
+    { admin::init_for_testing(s.ctx()); };
+    s.next_tx(ADMIN);
+    {
+        let cap = s.take_from_sender<AdminCap>();
+        passport::mint(&cap, ADMIN, s.ctx());
+        s.return_to_sender(cap);
+    };
+    s.next_tx(ADMIN);
+    {
+        let cap = s.take_from_sender<AdminCap>();
+        let mut p = s.take_from_sender<ArktionPassport>();
+        passport::update_stats(&cap, &mut p, 42, 7, 15, 1200);
+        assert!(passport::chapters_read(&p) == 42);
+        assert!(passport::series_completed(&p) == 7);
+        assert!(passport::series_tracked(&p) == 15);
+        assert!(passport::total_ink_earned(&p) == 1200);
+        assert!(passport::level(&p) == 2); // 500 <= 1200 < 2000
         s.return_to_sender(p);
         s.return_to_sender(cap);
     };
@@ -224,7 +287,6 @@ fun test_ink_mint_and_supply() {
         s.return_to_sender(treasury);
         s.return_to_sender(cap);
     };
-    // Coin lands in USER's inventory
     s.next_tx(USER);
     {
         let coin = s.take_from_sender<Coin<INK>>();
@@ -284,7 +346,6 @@ fun test_earn_chapter_read_mints_10_ink() {
         let coin = s.take_from_sender<Coin<INK>>();
         assert!(coin.value() == 10);
         s.return_to_sender(coin);
-        // EarningRecord transferred to USER as on-chain audit trail
         let record = s.take_from_sender<EarningRecord>();
         s.return_to_sender(record);
     };
@@ -338,7 +399,27 @@ fun test_earn_different_keys_both_succeed() {
         let mut registry = s.take_shared<EarningRegistry>();
         ink_earning::earn(&cap, &mut treasury, &mut registry, USER, 0, b"key-A".to_string(), s.ctx());
         ink_earning::earn(&cap, &mut treasury, &mut registry, USER, 0, b"key-B".to_string(), s.ctx());
-        assert!(ink::get_total_supply(&treasury) == 20); // 10 + 10
+        assert!(ink::get_total_supply(&treasury) == 20);
+        test_scenario::return_shared(registry);
+        s.return_to_sender(treasury);
+        s.return_to_sender(cap);
+    };
+    s.end();
+}
+
+#[test]
+fun test_earn_all_three_triggers_accumulate_correctly() {
+    let mut s = test_scenario::begin(ADMIN);
+    { setup_ink_earn(&mut s); };
+    s.next_tx(ADMIN);
+    {
+        let cap = s.take_from_sender<AdminCap>();
+        let mut treasury = s.take_from_sender<TreasuryCap<INK>>();
+        let mut registry = s.take_shared<EarningRegistry>();
+        ink_earning::earn(&cap, &mut treasury, &mut registry, USER, 0, b"k1".to_string(), s.ctx()); //  10
+        ink_earning::earn(&cap, &mut treasury, &mut registry, USER, 1, b"k2".to_string(), s.ctx()); // 100
+        ink_earning::earn(&cap, &mut treasury, &mut registry, USER, 2, b"k3".to_string(), s.ctx()); //  50
+        assert!(ink::get_total_supply(&treasury) == 160);
         test_scenario::return_shared(registry);
         s.return_to_sender(treasury);
         s.return_to_sender(cap);
@@ -383,10 +464,6 @@ fun test_earn_invalid_trigger_aborts() {
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // READING HISTORY MODULE
-//
-// create_library: AdminCap-gated (NestJS bootstraps on first sign-in)
-// add_or_update_record: owner-gated (USER signs — their reading state, their call)
-// set_history_blob: AdminCap-gated (NestJS handles Walrus archival)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 #[test]
@@ -399,7 +476,6 @@ fun test_reading_history_create_library() {
         reading_history::create_library(&cap, USER, s.ctx());
         s.return_to_sender(cap);
     };
-    // Library was transferred to USER
     s.next_tx(USER);
     {
         let library = s.take_from_sender<UserLibrary>();
@@ -418,14 +494,35 @@ fun test_reading_history_add_and_update_record() {
         reading_history::create_library(&cap, USER, s.ctx());
         s.return_to_sender(cap);
     };
-    // USER updates their own library
     s.next_tx(USER);
     {
         let mut library = s.take_from_sender<UserLibrary>();
-        // Add new record (status 0 = reading)
         reading_history::add_or_update_record(&mut library, b"series-abc".to_string(), 0, 5, s.ctx());
-        // Update same series (status 1 = completed) — upsert, not abort
         reading_history::add_or_update_record(&mut library, b"series-abc".to_string(), 1, 120, s.ctx());
+        s.return_to_sender(library);
+    };
+    s.end();
+}
+
+#[test]
+fun test_reading_history_completed_at_set_once() {
+    let mut s = test_scenario::begin(ADMIN);
+    { admin::init_for_testing(s.ctx()); };
+    s.next_tx(ADMIN);
+    {
+        let cap = s.take_from_sender<AdminCap>();
+        reading_history::create_library(&cap, USER, s.ctx());
+        s.return_to_sender(cap);
+    };
+    s.next_tx(USER);
+    {
+        let mut library = s.take_from_sender<UserLibrary>();
+        reading_history::add_or_update_record(&mut library, b"series-1".to_string(), 1, 50, s.ctx());
+        let first = reading_history::completed_at_for_testing(&library, b"series-1".to_string());
+        assert!(first.is_some());
+        reading_history::add_or_update_record(&mut library, b"series-1".to_string(), 1, 50, s.ctx());
+        let second = reading_history::completed_at_for_testing(&library, b"series-1".to_string());
+        assert!(second == first);
         s.return_to_sender(library);
     };
     s.end();
@@ -441,7 +538,6 @@ fun test_reading_history_set_blob() {
         reading_history::create_library(&cap, USER, s.ctx());
         s.return_to_sender(cap);
     };
-    // NestJS archives old records — AdminCap-gated, takes USER's library by address
     s.next_tx(ADMIN);
     {
         let cap = s.take_from_sender<AdminCap>();
@@ -482,7 +578,6 @@ fun test_reading_history_wrong_owner_aborts() {
         reading_history::create_library(&cap, USER, s.ctx());
         s.return_to_sender(cap);
     };
-    // ADMIN tries to update USER's library — must abort
     s.next_tx(ADMIN);
     {
         let mut library = test_scenario::take_from_address<UserLibrary>(&s, USER);
@@ -494,9 +589,6 @@ fun test_reading_history_wrong_owner_aborts() {
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // JOURNAL MODULE
-//
-// create_journal: AdminCap-gated (NestJS bootstraps on first sign-in)
-// add_entry, update_entry, mark_as_submitted: owner-gated (USER signs)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 #[test]
@@ -509,7 +601,6 @@ fun test_journal_full_flow() {
         journal::create_journal(&cap, USER, s.ctx());
         s.return_to_sender(cap);
     };
-    // USER manages their own journal
     s.next_tx(USER);
     {
         let mut j = s.take_from_sender<UserJournal>();
@@ -517,7 +608,7 @@ fun test_journal_full_flow() {
             &mut j,
             b"entry-001".to_string(),
             b"Solo Leveling".to_string(),
-            1,                                    // FORMAT_MANGA
+            1,
             b"https://mangadex.org/title/1".to_string(),
             200, 87,
             b"Peak fiction".to_string(),
@@ -525,8 +616,40 @@ fun test_journal_full_flow() {
         );
         journal::update_entry(&mut j, b"entry-001".to_string(), 100, b"Still peak".to_string(), s.ctx());
         journal::mark_as_submitted(&mut j, b"entry-001".to_string(), s.ctx());
-        // mark_as_submitted is idempotent — calling twice must not abort
-        journal::mark_as_submitted(&mut j, b"entry-001".to_string(), s.ctx());
+        journal::mark_as_submitted(&mut j, b"entry-001".to_string(), s.ctx()); // idempotent
+        s.return_to_sender(j);
+    };
+    s.end();
+}
+
+#[test]
+fun test_journal_submission_flag_is_set() {
+    let mut s = test_scenario::begin(ADMIN);
+    { admin::init_for_testing(s.ctx()); };
+    s.next_tx(ADMIN);
+    {
+        let cap = s.take_from_sender<AdminCap>();
+        journal::create_journal(&cap, USER, s.ctx());
+        s.return_to_sender(cap);
+    };
+    s.next_tx(USER);
+    {
+        let mut j = s.take_from_sender<UserJournal>();
+        journal::add_entry(
+            &mut j,
+            b"e-submit".to_string(),
+            b"Berserk".to_string(),
+            1,
+            b"https://mangadex.org/title/berserk".to_string(),
+            374, 374,
+            b"Masterpiece".to_string(),
+            s.ctx(),
+        );
+        assert!(!journal::submitted_as_suggestion_for_testing(&j, b"e-submit".to_string()));
+        journal::mark_as_submitted(&mut j, b"e-submit".to_string(), s.ctx());
+        assert!(journal::submitted_as_suggestion_for_testing(&j, b"e-submit".to_string()));
+        journal::mark_as_submitted(&mut j, b"e-submit".to_string(), s.ctx());
+        assert!(journal::submitted_as_suggestion_for_testing(&j, b"e-submit".to_string()));
         s.return_to_sender(j);
     };
     s.end();
@@ -599,7 +722,6 @@ fun test_journal_wrong_owner_aborts() {
         journal::create_journal(&cap, USER, s.ctx());
         s.return_to_sender(cap);
     };
-    // ADMIN tries to add to USER's journal — must abort
     s.next_tx(ADMIN);
     {
         let mut j = test_scenario::take_from_address<UserJournal>(&s, USER);
@@ -610,228 +732,543 @@ fun test_journal_wrong_owner_aborts() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// SERIES BADGES MODULE
+// BADGES MODULE
+//
+// Replaces the old series_badges module. Now covers all 5 categories
+// (Reading Achievement, Community, Series Lore, Creator, Contributor) with
+// composite-key idempotency: (recipient, category, badge_type, series_id) is
+// unique. Series Lore badges MUST have a non-empty series_id; all other
+// categories MUST have empty series_id.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 #[test]
-fun test_series_badge_mint_soul_bound() {
+fun test_badges_mint_series_lore_soul_bound() {
     let mut s = test_scenario::begin(ADMIN);
-    { admin::init_for_testing(s.ctx()); };
+    { setup_badges(&mut s); };
     s.next_tx(ADMIN);
     {
         let cap = s.take_from_sender<AdminCap>();
-        series_badges::mint(
-            &cap, USER,
+        let mut registry = s.take_shared<BadgeRegistry>();
+        badges::mint(
+            &cap,
+            &mut registry,
+            USER,
+            badges::category_series_lore(),
+            4, // LEGEND tier in the Series Lore enum
             b"series-dark-gathering".to_string(),
-            4,                         // LEGEND
-            0,
+            4,
             b"walrus-blob-badge-bytes",
             s.ctx(),
         );
+        test_scenario::return_shared(registry);
         s.return_to_sender(cap);
     };
     s.next_tx(USER);
     {
-        // Badge is soul-bound to USER — verify it exists in their inventory
-        assert!(s.has_most_recent_for_sender<SeriesBadge>());
-        let badge = s.take_from_sender<SeriesBadge>();
+        assert!(s.has_most_recent_for_sender<ArktionBadge>());
+        let badge = s.take_from_sender<ArktionBadge>();
+        assert!(badges::category(&badge) == badges::category_series_lore());
+        assert!(badges::series_id(&badge) == b"series-dark-gathering".to_string());
+        assert!(badges::metadata_blob_id(&badge) == b"walrus-blob-badge-bytes");
         s.return_to_sender(badge);
     };
     s.end();
 }
 
-#[test, expected_failure(abort_code = ::arktion::series_badges::EInvalidBadgeType)]
-fun test_series_badge_invalid_type_aborts() {
+#[test]
+fun test_badges_mint_reading_achievement_no_series_id() {
+    // Verifies Reading Achievement category mints correctly with an empty series_id.
+    // This is the Completionist-style badge minted on series completion that the
+    // demo flow depends on.
     let mut s = test_scenario::begin(ADMIN);
-    { admin::init_for_testing(s.ctx()); };
+    { setup_badges(&mut s); };
     s.next_tx(ADMIN);
     {
         let cap = s.take_from_sender<AdminCap>();
-        series_badges::mint(&cap, USER, b"s1".to_string(), 99, 0, b"blob", s.ctx());
+        let mut registry = s.take_shared<BadgeRegistry>();
+        badges::mint(
+            &cap,
+            &mut registry,
+            USER,
+            badges::category_reading_achievement(),
+            2, // e.g. SERIES_COMPLETIONIST in the Reading Achievement enum
+            b"".to_string(),
+            0,
+            b"walrus-completionist-blob",
+            s.ctx(),
+        );
+        test_scenario::return_shared(registry);
+        s.return_to_sender(cap);
+    };
+    s.next_tx(USER);
+    {
+        let badge = s.take_from_sender<ArktionBadge>();
+        assert!(badges::category(&badge) == badges::category_reading_achievement());
+        assert!(badges::series_id(&badge) == b"".to_string());
+        s.return_to_sender(badge);
+    };
+    s.end();
+}
+
+#[test]
+fun test_badges_all_five_categories_mintable() {
+    let mut s = test_scenario::begin(ADMIN);
+    { setup_badges(&mut s); };
+    s.next_tx(ADMIN);
+    {
+        let cap = s.take_from_sender<AdminCap>();
+        let mut registry = s.take_shared<BadgeRegistry>();
+        // Each category mints once. Series Lore requires a non-empty series_id;
+        // every other category requires an empty series_id.
+        badges::mint(&cap, &mut registry, USER, badges::category_reading_achievement(), 0, b"".to_string(),         0, b"blob", s.ctx());
+        badges::mint(&cap, &mut registry, USER, badges::category_community(),           0, b"".to_string(),         0, b"blob", s.ctx());
+        badges::mint(&cap, &mut registry, USER, badges::category_series_lore(),         0, b"series-a".to_string(), 0, b"blob", s.ctx());
+        badges::mint(&cap, &mut registry, USER, badges::category_creator(),             0, b"".to_string(),         0, b"blob", s.ctx());
+        badges::mint(&cap, &mut registry, USER, badges::category_contributor(),         0, b"".to_string(),         0, b"blob", s.ctx());
+        test_scenario::return_shared(registry);
+        s.return_to_sender(cap);
+    };
+    s.end();
+}
+
+/// THE EMPTY-SERIES-ID TEST.
+/// Series Lore badges MUST be tied to a specific series. Minting one with an
+/// empty series_id is a category-vs-data invariant violation and aborts with
+/// ESeriesIdMismatch.
+#[test, expected_failure(abort_code = ::arktion::badges::ESeriesIdMismatch)]
+fun test_badges_series_lore_empty_series_id_aborts() {
+    let mut s = test_scenario::begin(ADMIN);
+    { setup_badges(&mut s); };
+    s.next_tx(ADMIN);
+    {
+        let cap = s.take_from_sender<AdminCap>();
+        let mut registry = s.take_shared<BadgeRegistry>();
+        badges::mint(
+            &cap,
+            &mut registry,
+            USER,
+            badges::category_series_lore(),
+            0,
+            b"".to_string(),    // <-- empty: must abort
+            0,
+            b"blob",
+            s.ctx(),
+        );
+        test_scenario::return_shared(registry);
+        s.return_to_sender(cap);
+    };
+    s.end();
+}
+
+/// The mirror of the above: a non-Series-Lore category MUST have an empty
+/// series_id. Passing a populated series_id is the same invariant violation.
+#[test, expected_failure(abort_code = ::arktion::badges::ESeriesIdMismatch)]
+fun test_badges_reading_achievement_with_series_id_aborts() {
+    let mut s = test_scenario::begin(ADMIN);
+    { setup_badges(&mut s); };
+    s.next_tx(ADMIN);
+    {
+        let cap = s.take_from_sender<AdminCap>();
+        let mut registry = s.take_shared<BadgeRegistry>();
+        badges::mint(
+            &cap,
+            &mut registry,
+            USER,
+            badges::category_reading_achievement(),
+            0,
+            b"series-a".to_string(), // <-- non-empty for non-Series-Lore: must abort
+            0,
+            b"blob",
+            s.ctx(),
+        );
+        test_scenario::return_shared(registry);
+        s.return_to_sender(cap);
+    };
+    s.end();
+}
+
+/// Composite-key idempotency: minting the same (recipient, category, badge_type,
+/// series_id) twice aborts the second call. Different series_id is a different
+/// key, so it succeeds.
+#[test, expected_failure(abort_code = ::arktion::badges::EBadgeAlreadyMinted)]
+fun test_badges_duplicate_composite_key_aborts() {
+    let mut s = test_scenario::begin(ADMIN);
+    { setup_badges(&mut s); };
+    s.next_tx(ADMIN);
+    {
+        let cap = s.take_from_sender<AdminCap>();
+        let mut registry = s.take_shared<BadgeRegistry>();
+        badges::mint(&cap, &mut registry, USER, badges::category_series_lore(), 0, b"series-x".to_string(), 0, b"blob", s.ctx());
+        // Same (recipient, category=series_lore, badge_type=0, series_id="series-x")
+        badges::mint(&cap, &mut registry, USER, badges::category_series_lore(), 0, b"series-x".to_string(), 0, b"blob", s.ctx());
+        test_scenario::return_shared(registry);
         s.return_to_sender(cap);
     };
     s.end();
 }
 
 #[test]
-fun test_series_badge_all_valid_types() {
+fun test_badges_different_series_id_no_collision() {
     let mut s = test_scenario::begin(ADMIN);
-    { admin::init_for_testing(s.ctx()); };
+    { setup_badges(&mut s); };
     s.next_tx(ADMIN);
     {
         let cap = s.take_from_sender<AdminCap>();
-        // All five badge types must mint without aborting
-        series_badges::mint(&cap, USER, b"s1".to_string(), 0, 0, b"blob", s.ctx()); // INITIATE
-        series_badges::mint(&cap, USER, b"s1".to_string(), 1, 0, b"blob", s.ctx()); // SCHOLAR
-        series_badges::mint(&cap, USER, b"s1".to_string(), 2, 0, b"blob", s.ctx()); // VETERAN
-        series_badges::mint(&cap, USER, b"s1".to_string(), 3, 0, b"blob", s.ctx()); // ELDER
-        series_badges::mint(&cap, USER, b"s1".to_string(), 4, 0, b"blob", s.ctx()); // LEGEND
+        let mut registry = s.take_shared<BadgeRegistry>();
+        // Same recipient, same category, same badge_type, DIFFERENT series_id.
+        // Composite key differs, so both succeed.
+        badges::mint(&cap, &mut registry, USER, badges::category_series_lore(), 0, b"series-a".to_string(), 0, b"blob", s.ctx());
+        badges::mint(&cap, &mut registry, USER, badges::category_series_lore(), 0, b"series-b".to_string(), 0, b"blob", s.ctx());
+        assert!(badges::has_badge_for_testing(&registry, USER, badges::category_series_lore(), 0, b"series-a".to_string()));
+        assert!(badges::has_badge_for_testing(&registry, USER, badges::category_series_lore(), 0, b"series-b".to_string()));
+        test_scenario::return_shared(registry);
         s.return_to_sender(cap);
+    };
+    s.end();
+}
+
+#[test, expected_failure(abort_code = ::arktion::badges::EInvalidCategory)]
+fun test_badges_invalid_category_aborts() {
+    let mut s = test_scenario::begin(ADMIN);
+    { setup_badges(&mut s); };
+    s.next_tx(ADMIN);
+    {
+        let cap = s.take_from_sender<AdminCap>();
+        let mut registry = s.take_shared<BadgeRegistry>();
+        badges::mint(&cap, &mut registry, USER, 99, 0, b"".to_string(), 0, b"blob", s.ctx());
+        test_scenario::return_shared(registry);
+        s.return_to_sender(cap);
+    };
+    s.end();
+}
+
+#[test]
+fun test_badges_metadata_blob_id_anchored() {
+    let mut s = test_scenario::begin(ADMIN);
+    { setup_badges(&mut s); };
+    s.next_tx(ADMIN);
+    {
+        let cap = s.take_from_sender<AdminCap>();
+        let mut registry = s.take_shared<BadgeRegistry>();
+        badges::mint(
+            &cap,
+            &mut registry,
+            USER,
+            badges::category_series_lore(),
+            3,
+            b"series-chainsaw".to_string(),
+            3,
+            b"walrus-badge-meta-abc123",
+            s.ctx(),
+        );
+        test_scenario::return_shared(registry);
+        s.return_to_sender(cap);
+    };
+    s.next_tx(USER);
+    {
+        let badge = s.take_from_sender<ArktionBadge>();
+        assert!(badges::metadata_blob_id(&badge) == b"walrus-badge-meta-abc123");
+        s.return_to_sender(badge);
     };
     s.end();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// MISSING EDGE CASES
+// SUBMISSION MODULE
+//
+// New shared-object-per-submission architecture. claim_reward is atomic:
+// it mints INK + Contributor badge + sets reward_claimed in one transaction.
+// Any failure rolls the whole thing back.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 #[test]
-fun test_passport_blob_id_overwrites() {
+fun test_submission_create_pending_status() {
     let mut s = test_scenario::begin(ADMIN);
     { admin::init_for_testing(s.ctx()); };
-    s.next_tx(ADMIN);
+    s.next_tx(USER);
     {
-        let cap = s.take_from_sender<AdminCap>();
-        passport::mint(&cap, ADMIN, s.ctx());
-        s.return_to_sender(cap);
+        submission::create(
+            b"Solo Leveling".to_string(),
+            1,
+            b"https://mangadex.org/title/solo-leveling".to_string(),
+            b"mangadex".to_string(),
+            s.ctx(),
+        );
+    };
+    s.next_tx(USER);
+    {
+        let sub = s.take_shared<Submission>();
+        assert!(submission::submitter(&sub) == USER);
+        assert!(submission::status(&sub) == submission::status_pending());
+        assert!(submission::reviewed_at(&sub).is_none());
+        assert!(!submission::reward_claimed(&sub));
+        test_scenario::return_shared(sub);
+    };
+    s.end();
+}
+
+#[test]
+fun test_submission_approve_flow() {
+    let mut s = test_scenario::begin(ADMIN);
+    { admin::init_for_testing(s.ctx()); };
+    s.next_tx(USER);
+    {
+        submission::create(b"Berserk".to_string(), 1, b"url".to_string(), b"src".to_string(), s.ctx());
     };
     s.next_tx(ADMIN);
     {
         let cap = s.take_from_sender<AdminCap>();
-        let mut p = s.take_from_sender<ArktionPassport>();
-        passport::set_blob_id(&cap, &mut p, b"blob-v1", s.ctx());
-        assert!(*passport::identity_snapshot_blob_id(&p).borrow() == b"blob-v1");
-        // Second call must overwrite, not append or clear
-        passport::set_blob_id(&cap, &mut p, b"blob-v2", s.ctx());
-        assert!(*passport::identity_snapshot_blob_id(&p).borrow() == b"blob-v2");
-        s.return_to_sender(p);
+        let mut sub = s.take_shared<Submission>();
+        submission::approve(&cap, &mut sub, s.ctx());
+        assert!(submission::status(&sub) == submission::status_approved());
+        assert!(submission::reviewed_at(&sub).is_some());
+        test_scenario::return_shared(sub);
         s.return_to_sender(cap);
     };
     s.end();
 }
 
 #[test]
-fun test_earn_all_three_triggers_accumulate_correctly() {
+fun test_submission_reject_flow() {
     let mut s = test_scenario::begin(ADMIN);
-    { setup_ink_earn(&mut s); };
+    { admin::init_for_testing(s.ctx()); };
+    s.next_tx(USER);
+    {
+        submission::create(b"Naruto".to_string(), 1, b"url".to_string(), b"src".to_string(), s.ctx());
+    };
+    s.next_tx(ADMIN);
+    {
+        let cap = s.take_from_sender<AdminCap>();
+        let mut sub = s.take_shared<Submission>();
+        submission::reject(&cap, &mut sub, s.ctx());
+        assert!(submission::status(&sub) == submission::status_rejected());
+        assert!(submission::reviewed_at(&sub).is_some());
+        test_scenario::return_shared(sub);
+        s.return_to_sender(cap);
+    };
+    s.end();
+}
+
+/// End-to-end claim_reward: USER creates a submission, ADMIN approves it,
+/// ADMIN calls claim_reward, and we verify INK + Contributor badge both
+/// landed in USER's inventory and reward_claimed flipped to true.
+#[test]
+fun test_submission_claim_reward_full_flow() {
+    let mut s = test_scenario::begin(ADMIN);
+    { setup_full_stack(&mut s); };
+    s.next_tx(USER);
+    {
+        submission::create(b"Vagabond".to_string(), 1, b"url".to_string(), b"src".to_string(), s.ctx());
+    };
+    s.next_tx(ADMIN);
+    {
+        let cap = s.take_from_sender<AdminCap>();
+        let mut sub = s.take_shared<Submission>();
+        submission::approve(&cap, &mut sub, s.ctx());
+        test_scenario::return_shared(sub);
+        s.return_to_sender(cap);
+    };
     s.next_tx(ADMIN);
     {
         let cap = s.take_from_sender<AdminCap>();
         let mut treasury = s.take_from_sender<TreasuryCap<INK>>();
-        let mut registry = s.take_shared<EarningRegistry>();
-        ink_earning::earn(&cap, &mut treasury, &mut registry, USER, 0, b"k1".to_string(), s.ctx()); //  10
-        ink_earning::earn(&cap, &mut treasury, &mut registry, USER, 1, b"k2".to_string(), s.ctx()); // 100
-        ink_earning::earn(&cap, &mut treasury, &mut registry, USER, 2, b"k3".to_string(), s.ctx()); //  50
-        assert!(ink::get_total_supply(&treasury) == 160);
-        test_scenario::return_shared(registry);
+        let mut earning_reg = s.take_shared<EarningRegistry>();
+        let mut badge_reg = s.take_shared<BadgeRegistry>();
+        let mut sub = s.take_shared<Submission>();
+
+        submission::claim_reward(
+            &cap,
+            &mut treasury,
+            &mut earning_reg,
+            &mut badge_reg,
+            &mut sub,
+            b"reward-key-001".to_string(),
+            b"walrus-contributor-badge",
+            s.ctx(),
+        );
+
+        assert!(submission::reward_claimed(&sub));
+        assert!(ink::get_total_supply(&treasury) == 50);
+        assert!(badges::has_badge_for_testing(&badge_reg, USER, badges::category_contributor(), 0, b"".to_string()));
+
+        test_scenario::return_shared(sub);
+        test_scenario::return_shared(badge_reg);
+        test_scenario::return_shared(earning_reg);
+        s.return_to_sender(treasury);
+        s.return_to_sender(cap);
+    };
+    s.next_tx(USER);
+    {
+        // INK landed
+        let coin = s.take_from_sender<Coin<INK>>();
+        assert!(coin.value() == 50);
+        s.return_to_sender(coin);
+        // EarningRecord audit trail
+        let record = s.take_from_sender<EarningRecord>();
+        s.return_to_sender(record);
+        // Contributor badge landed
+        let badge = s.take_from_sender<ArktionBadge>();
+        assert!(badges::category(&badge) == badges::category_contributor());
+        assert!(badges::series_id(&badge) == b"".to_string());
+        s.return_to_sender(badge);
+    };
+    s.end();
+}
+
+#[test, expected_failure(abort_code = ::arktion::submission::ENotPending)]
+fun test_submission_approve_twice_aborts() {
+    let mut s = test_scenario::begin(ADMIN);
+    { admin::init_for_testing(s.ctx()); };
+    s.next_tx(USER);
+    {
+        submission::create(b"Title".to_string(), 0, b"url".to_string(), b"src".to_string(), s.ctx());
+    };
+    s.next_tx(ADMIN);
+    {
+        let cap = s.take_from_sender<AdminCap>();
+        let mut sub = s.take_shared<Submission>();
+        submission::approve(&cap, &mut sub, s.ctx());
+        submission::approve(&cap, &mut sub, s.ctx()); // second approve: not PENDING
+        test_scenario::return_shared(sub);
+        s.return_to_sender(cap);
+    };
+    s.end();
+}
+
+#[test, expected_failure(abort_code = ::arktion::submission::ENotPending)]
+fun test_submission_reject_after_approve_aborts() {
+    let mut s = test_scenario::begin(ADMIN);
+    { admin::init_for_testing(s.ctx()); };
+    s.next_tx(USER);
+    {
+        submission::create(b"Title".to_string(), 0, b"url".to_string(), b"src".to_string(), s.ctx());
+    };
+    s.next_tx(ADMIN);
+    {
+        let cap = s.take_from_sender<AdminCap>();
+        let mut sub = s.take_shared<Submission>();
+        submission::approve(&cap, &mut sub, s.ctx());
+        submission::reject(&cap, &mut sub, s.ctx()); // can't reject an approved submission
+        test_scenario::return_shared(sub);
+        s.return_to_sender(cap);
+    };
+    s.end();
+}
+
+#[test, expected_failure(abort_code = ::arktion::submission::ENotApproved)]
+fun test_submission_claim_reward_on_pending_aborts() {
+    let mut s = test_scenario::begin(ADMIN);
+    { setup_full_stack(&mut s); };
+    s.next_tx(USER);
+    {
+        submission::create(b"Title".to_string(), 0, b"url".to_string(), b"src".to_string(), s.ctx());
+    };
+    // No approve — claim_reward must abort with ENotApproved
+    s.next_tx(ADMIN);
+    {
+        let cap = s.take_from_sender<AdminCap>();
+        let mut treasury = s.take_from_sender<TreasuryCap<INK>>();
+        let mut earning_reg = s.take_shared<EarningRegistry>();
+        let mut badge_reg = s.take_shared<BadgeRegistry>();
+        let mut sub = s.take_shared<Submission>();
+        submission::claim_reward(
+            &cap, &mut treasury, &mut earning_reg, &mut badge_reg, &mut sub,
+            b"rk".to_string(), b"blob", s.ctx(),
+        );
+        test_scenario::return_shared(sub);
+        test_scenario::return_shared(badge_reg);
+        test_scenario::return_shared(earning_reg);
         s.return_to_sender(treasury);
         s.return_to_sender(cap);
     };
     s.end();
 }
 
-/// Verifies that submitted_as_suggestion is false before marking, true after,
-/// and stays true on a second call (idempotency).
-#[test]
-fun test_journal_submission_flag_is_set() {
+#[test, expected_failure(abort_code = ::arktion::submission::ENotApproved)]
+fun test_submission_claim_reward_on_rejected_aborts() {
     let mut s = test_scenario::begin(ADMIN);
-    { admin::init_for_testing(s.ctx()); };
+    { setup_full_stack(&mut s); };
+    s.next_tx(USER);
+    {
+        submission::create(b"Title".to_string(), 0, b"url".to_string(), b"src".to_string(), s.ctx());
+    };
     s.next_tx(ADMIN);
     {
         let cap = s.take_from_sender<AdminCap>();
-        journal::create_journal(&cap, USER, s.ctx());
+        let mut sub = s.take_shared<Submission>();
+        submission::reject(&cap, &mut sub, s.ctx());
+        test_scenario::return_shared(sub);
         s.return_to_sender(cap);
     };
-    s.next_tx(USER);
+    s.next_tx(ADMIN);
     {
-        let mut j = s.take_from_sender<UserJournal>();
-        journal::add_entry(
-            &mut j,
-            b"e-submit".to_string(),
-            b"Berserk".to_string(),
-            1, // FORMAT_MANGA
-            b"https://mangadex.org/title/berserk".to_string(),
-            374, 374,
-            b"Masterpiece".to_string(),
-            s.ctx(),
+        let cap = s.take_from_sender<AdminCap>();
+        let mut treasury = s.take_from_sender<TreasuryCap<INK>>();
+        let mut earning_reg = s.take_shared<EarningRegistry>();
+        let mut badge_reg = s.take_shared<BadgeRegistry>();
+        let mut sub = s.take_shared<Submission>();
+        submission::claim_reward(
+            &cap, &mut treasury, &mut earning_reg, &mut badge_reg, &mut sub,
+            b"rk".to_string(), b"blob", s.ctx(),
         );
-        assert!(!journal::submitted_as_suggestion_for_testing(&j, b"e-submit".to_string()));
-        journal::mark_as_submitted(&mut j, b"e-submit".to_string(), s.ctx());
-        assert!(journal::submitted_as_suggestion_for_testing(&j, b"e-submit".to_string()));
-        // Second call must be idempotent — flag stays true, no abort
-        journal::mark_as_submitted(&mut j, b"e-submit".to_string(), s.ctx());
-        assert!(journal::submitted_as_suggestion_for_testing(&j, b"e-submit".to_string()));
-        s.return_to_sender(j);
-    };
-    s.end();
-}
-
-/// Verifies that all four stat fields are updated by update_stats, not just level.
-#[test]
-fun test_passport_update_stats_all_fields() {
-    let mut s = test_scenario::begin(ADMIN);
-    { admin::init_for_testing(s.ctx()); };
-    s.next_tx(ADMIN);
-    {
-        let cap = s.take_from_sender<AdminCap>();
-        passport::mint(&cap, ADMIN, s.ctx());
-        s.return_to_sender(cap);
-    };
-    s.next_tx(ADMIN);
-    {
-        let cap = s.take_from_sender<AdminCap>();
-        let mut p = s.take_from_sender<ArktionPassport>();
-        passport::update_stats(&cap, &mut p, 42, 7, 15, 1200);
-        assert!(passport::chapters_read(&p) == 42);
-        assert!(passport::series_completed(&p) == 7);
-        assert!(passport::series_tracked(&p) == 15);
-        assert!(passport::total_ink_earned(&p) == 1200);
-        assert!(passport::level(&p) == 2); // 500 <= 1200 < 2000
-        s.return_to_sender(p);
+        test_scenario::return_shared(sub);
+        test_scenario::return_shared(badge_reg);
+        test_scenario::return_shared(earning_reg);
+        s.return_to_sender(treasury);
         s.return_to_sender(cap);
     };
     s.end();
 }
 
-/// Verifies that metadata_blob_id is permanently anchored to the badge at mint time.
-#[test]
-fun test_series_badge_metadata_blob_id_anchored() {
+#[test, expected_failure(abort_code = ::arktion::submission::EAlreadyClaimed)]
+fun test_submission_claim_reward_twice_aborts() {
     let mut s = test_scenario::begin(ADMIN);
-    { admin::init_for_testing(s.ctx()); };
+    { setup_full_stack(&mut s); };
+    s.next_tx(USER);
+    {
+        submission::create(b"Title".to_string(), 0, b"url".to_string(), b"src".to_string(), s.ctx());
+    };
     s.next_tx(ADMIN);
     {
         let cap = s.take_from_sender<AdminCap>();
-        series_badges::mint(
-            &cap, USER,
-            b"series-chainsaw".to_string(),
-            3, // ELDER
-            0,
-            b"walrus-badge-meta-abc123",
-            s.ctx(),
+        let mut sub = s.take_shared<Submission>();
+        submission::approve(&cap, &mut sub, s.ctx());
+        test_scenario::return_shared(sub);
+        s.return_to_sender(cap);
+    };
+    s.next_tx(ADMIN);
+    {
+        let cap = s.take_from_sender<AdminCap>();
+        let mut treasury = s.take_from_sender<TreasuryCap<INK>>();
+        let mut earning_reg = s.take_shared<EarningRegistry>();
+        let mut badge_reg = s.take_shared<BadgeRegistry>();
+        let mut sub = s.take_shared<Submission>();
+        submission::claim_reward(
+            &cap, &mut treasury, &mut earning_reg, &mut badge_reg, &mut sub,
+            b"rk-1".to_string(), b"blob", s.ctx(),
         );
+        // Second claim attempt uses a fresh idempotency_key so the abort is from
+        // reward_claimed, not from ink_earning. That's the guarantee being tested.
+        submission::claim_reward(
+            &cap, &mut treasury, &mut earning_reg, &mut badge_reg, &mut sub,
+            b"rk-2".to_string(), b"blob", s.ctx(),
+        );
+        test_scenario::return_shared(sub);
+        test_scenario::return_shared(badge_reg);
+        test_scenario::return_shared(earning_reg);
+        s.return_to_sender(treasury);
         s.return_to_sender(cap);
-    };
-    s.next_tx(USER);
-    {
-        let badge = s.take_from_sender<SeriesBadge>();
-        assert!(series_badges::metadata_blob_id_for_testing(&badge) == b"walrus-badge-meta-abc123");
-        s.return_to_sender(badge);
     };
     s.end();
 }
 
-#[test]
-fun test_reading_history_completed_at_set_once() {
+#[test, expected_failure(abort_code = ::arktion::submission::EInvalidFormat)]
+fun test_submission_invalid_format_aborts() {
     let mut s = test_scenario::begin(ADMIN);
     { admin::init_for_testing(s.ctx()); };
-    s.next_tx(ADMIN);
-    {
-        let cap = s.take_from_sender<AdminCap>();
-        reading_history::create_library(&cap, USER, s.ctx());
-        s.return_to_sender(cap);
-    };
     s.next_tx(USER);
     {
-        let mut library = s.take_from_sender<UserLibrary>();
-        // First completion sets completed_at
-        reading_history::add_or_update_record(&mut library, b"series-1".to_string(), 1, 50, s.ctx());
-        let first = reading_history::completed_at_for_testing(&library, b"series-1".to_string());
-        assert!(first.is_some());
-        // Calling again with STATUS_COMPLETED must not overwrite it
-        reading_history::add_or_update_record(&mut library, b"series-1".to_string(), 1, 50, s.ctx());
-        let second = reading_history::completed_at_for_testing(&library, b"series-1".to_string());
-        assert!(second == first);
-        s.return_to_sender(library);
+        submission::create(b"Title".to_string(), 99, b"url".to_string(), b"src".to_string(), s.ctx());
     };
     s.end();
 }
