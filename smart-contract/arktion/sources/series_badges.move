@@ -14,10 +14,8 @@
 module arktion::series_badges;
 
 use arktion::admin::AdminCap;
-use sui::event;
 use std::string::String;
-
-// ===== Badge type constants =====
+use sui::event;
 
 // These are kept as documentation for NestJS callers that map badge type codes.
 #[allow(unused_const)]
@@ -30,12 +28,8 @@ const VETERAN: u8 = 2;
 const ELDER: u8 = 3;
 const LEGEND: u8 = 4;
 
-// ===== Error codes =====
-
 /// badge_type is outside the range 0–4 (INITIATE through LEGEND).
 const EInvalidBadgeType: u64 = 0;
-
-// ===== Structs =====
 
 /// Soul-bound achievement badge tied to a specific series.
 /// `key` only (no `store`) — cannot be transferred or wrapped by external callers.
@@ -51,16 +45,12 @@ public struct SeriesBadge has key {
     metadata_blob_id: vector<u8>,
 }
 
-// ===== Events =====
-
 public struct BadgeMinted has copy, drop {
     recipient: address,
     series_id: String,
     badge_type: u8,
     tier: u8,
 }
-
-// ===== Write functions =====
 
 /// Mint a soul-bound badge and transfer it to `recipient`.
 /// NestJS must upload badge metadata to Walrus and pass the resulting BlobId here.
@@ -95,13 +85,9 @@ public fun mint(
     transfer::transfer(badge, recipient);
 }
 
-// ===== Test helpers =====
-
 /// Returns the Walrus BlobId anchored to this badge so tests can verify it is
 /// stored correctly at mint time. Not part of the production API.
 #[test_only]
 public fun metadata_blob_id_for_testing(badge: &SeriesBadge): vector<u8> {
     badge.metadata_blob_id
 }
-
-// NOTE: No transfer function. Soul-bound.

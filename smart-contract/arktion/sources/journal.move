@@ -13,11 +13,9 @@
 module arktion::journal;
 
 use arktion::admin::AdminCap;
+use std::string::String;
 use sui::dynamic_field;
 use sui::event;
-use std::string::String;
-
-// ===== Format type constants =====
 
 // These are kept as documentation for NestJS callers that map format codes.
 #[allow(unused_const)]
@@ -30,16 +28,12 @@ const FORMAT_MANHWA: u8 = 2;
 const FORMAT_MANHUA: u8 = 3;
 const FORMAT_WEBTOON: u8 = 4;
 
-// ===== Error codes =====
-
 /// format_type is outside the range 0–4.
 const EInvalidFormat: u64 = 0;
 /// No entry with this entry_id exists in the journal.
 const EEntryNotFound: u64 = 1;
 /// Caller is not the owner of this journal.
 const ENotOwner: u64 = 2;
-
-// ===== Structs =====
 
 /// One per user. Owns all JournalEntry dynamic fields.
 public struct UserJournal has key {
@@ -60,8 +54,6 @@ public struct JournalEntry has store {
     created_at: u64,
 }
 
-// ===== Events =====
-
 public struct EntryAdded has copy, drop {
     owner: address,
     entry_id: String,
@@ -77,10 +69,6 @@ public struct EntrySubmitted has copy, drop {
     owner: address,
     entry_id: String,
 }
-
-// ===== Write functions =====
-
-// ===== Test helpers =====
 
 /// Returns whether the entry has been submitted as a suggestion.
 /// Used by tests to assert the flag is set without exposing it in the production API.
@@ -116,17 +104,21 @@ public fun add_entry(
     assert!(ctx.sender() == journal.owner, ENotOwner);
     assert!(format_type <= FORMAT_WEBTOON, EInvalidFormat);
 
-    dynamic_field::add(&mut journal.id, entry_id, JournalEntry {
+    dynamic_field::add(
+        &mut journal.id,
         entry_id,
-        external_title: title,
-        format_type,
-        external_url,
-        total_chapters,
-        current_chapter,
-        notes,
-        submitted_as_suggestion: false,
-        created_at: ctx.epoch_timestamp_ms(),
-    });
+        JournalEntry {
+            entry_id,
+            external_title: title,
+            format_type,
+            external_url,
+            total_chapters,
+            current_chapter,
+            notes,
+            submitted_as_suggestion: false,
+            created_at: ctx.epoch_timestamp_ms(),
+        },
+    );
 
     event::emit(EntryAdded {
         owner: journal.owner,
@@ -159,11 +151,7 @@ public fun update_entry(
 
 /// Flag an entry as submitted to the Arktion acquisition suggestion queue.
 /// Called by the user — it's their recommendation. Idempotent: calling twice is harmless.
-public fun mark_as_submitted(
-    journal: &mut UserJournal,
-    entry_id: String,
-    ctx: &TxContext,
-) {
+public fun mark_as_submitted(journal: &mut UserJournal, entry_id: String, ctx: &TxContext) {
     assert!(ctx.sender() == journal.owner, ENotOwner);
     assert!(dynamic_field::exists(&journal.id, entry_id), EEntryNotFound);
 

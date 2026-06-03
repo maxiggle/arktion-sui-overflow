@@ -12,31 +12,23 @@ module arktion::ink_earning;
 
 use arktion::admin::AdminCap;
 use arktion::ink::{Self, INK};
+use std::string::String;
 use sui::coin::TreasuryCap;
 use sui::dynamic_field;
 use sui::event;
-use std::string::String;
-
-// ===== Earning trigger types =====
 
 const CHAPTER_READ: u8 = 0;
 const SERIES_COMPLETE: u8 = 1;
 const SUBMISSION_APPROVED: u8 = 2;
 
-// ===== INK amounts per trigger =====
-
 const CHAPTER_READ_AMOUNT: u64 = 10;
 const SERIES_COMPLETE_AMOUNT: u64 = 100;
 const SUBMISSION_APPROVED_AMOUNT: u64 = 50;
-
-// ===== Error codes =====
 
 /// trigger_type is not one of the three defined constants.
 const EInvalidTriggerType: u64 = 0;
 /// This idempotency_key has already been processed — replay attempt blocked.
 const EDuplicateIdempotencyKey: u64 = 1;
-
-// ===== Structs =====
 
 /// On-chain audit record sent to the user after each successful earn.
 /// Gives users verifiable proof of every INK they received and why.
@@ -56,8 +48,6 @@ public struct EarningRegistry has key {
     id: UID,
 }
 
-// ===== Events =====
-
 public struct InkEarned has copy, drop {
     user: address,
     trigger_type: u8,
@@ -65,22 +55,16 @@ public struct InkEarned has copy, drop {
     idempotency_key: String,
 }
 
-// ===== Init =====
-
 /// Shares the EarningRegistry at publish time. Must exist before any earn() call.
 fun init(ctx: &mut TxContext) {
     let registry = EarningRegistry { id: object::new(ctx) };
     transfer::share_object(registry);
 }
 
-// ===== Test helpers =====
-
 #[test_only]
 public fun init_for_testing(ctx: &mut TxContext) {
     init(ctx);
 }
-
-// ===== Write functions =====
 
 /// Mint INK for a user in exchange for a qualifying platform action.
 ///
@@ -104,10 +88,7 @@ public fun earn(
     ctx: &mut TxContext,
 ) {
     assert!(trigger_type <= SUBMISSION_APPROVED, EInvalidTriggerType);
-    assert!(
-        !dynamic_field::exists(&registry.id, idempotency_key),
-        EDuplicateIdempotencyKey,
-    );
+    assert!(!dynamic_field::exists(&registry.id, idempotency_key), EDuplicateIdempotencyKey);
 
     let amount = get_amount_for_trigger(trigger_type);
 
@@ -135,8 +116,6 @@ public fun earn(
     });
 }
 
-// ===== Internal =====
-
 fun get_amount_for_trigger(trigger_type: u8): u64 {
     if (trigger_type == CHAPTER_READ) {
         CHAPTER_READ_AMOUNT
@@ -149,8 +128,8 @@ fun get_amount_for_trigger(trigger_type: u8): u64 {
     }
 }
 
-// ===== Trigger constants exposed for cross-module use =====
-
 public fun trigger_chapter_read(): u8 { CHAPTER_READ }
+
 public fun trigger_series_complete(): u8 { SERIES_COMPLETE }
+
 public fun trigger_submission_approved(): u8 { SUBMISSION_APPROVED }

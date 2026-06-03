@@ -17,13 +17,9 @@ use arktion::admin::AdminCap;
 use sui::coin::{Self, TreasuryCap, Coin};
 use sui::coin_registry;
 
-// ===== One-time witness =====
-
 /// Must be named exactly `INK` (uppercase, matching module name) for the
 /// one-time witness coin pattern. `drop` is the only required ability.
 public struct INK has drop {}
-
-// ===== Init =====
 
 /// Runs once at publish. Creates the INK currency using the new coin registry API,
 /// permanently deletes the MetadataCap to freeze symbol/name/description, and
@@ -32,11 +28,11 @@ public struct INK has drop {}
 fun init(witness: INK, ctx: &mut TxContext) {
     let (initializer, treasury) = coin_registry::new_currency_with_otw(
         witness,
-        0,                                          // decimals: INK is whole units
+        0, // decimals: INK is whole units
         b"INK".to_string(),
         b"Arktion INK".to_string(),
         b"Arktion platform engagement token".to_string(),
-        b"".to_string(),                            // no icon URL at launch
+        b"".to_string(), // no icon URL at launch
         ctx,
     );
     // Delete MetadataCap immediately — symbol/name/description are permanently frozen.
@@ -44,14 +40,10 @@ fun init(witness: INK, ctx: &mut TxContext) {
     transfer::public_transfer(treasury, ctx.sender());
 }
 
-// ===== Test helpers =====
-
 #[test_only]
 public fun init_for_testing(ctx: &mut TxContext) {
     init(INK {}, ctx);
 }
-
-// ===== Write functions =====
 
 /// Mint `amount` INK and send to `recipient`.
 /// Requires both AdminCap and TreasuryCap to prevent unilateral minting by
@@ -73,8 +65,6 @@ public fun mint(
 public fun burn(treasury: &mut TreasuryCap<INK>, coin: Coin<INK>) {
     coin::burn(treasury, coin);
 }
-
-// ===== Read-only helpers =====
 
 /// Total INK in circulation. Useful for NestJS dashboards and on-chain checks.
 public fun get_total_supply(treasury: &TreasuryCap<INK>): u64 {

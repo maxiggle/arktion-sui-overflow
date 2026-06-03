@@ -16,8 +16,6 @@ module arktion::passport;
 use arktion::admin::AdminCap;
 use sui::event;
 
-// ===== Structs =====
-
 public struct ArktionPassport has key {
     id: UID,
     owner: address,
@@ -29,8 +27,6 @@ public struct ArktionPassport has key {
     identity_snapshot_blob_id: Option<vector<u8>>,
     created_at: u64,
 }
-
-// ===== Events =====
 
 public struct PassportMinted has copy, drop {
     object_id: ID,
@@ -54,8 +50,6 @@ public struct BlobIdSet has copy, drop {
     object_id: ID,
     owner: address,
 }
-
-// ===== Public view functions =====
 
 public fun owner(passport: &ArktionPassport): address {
     passport.owner
@@ -84,8 +78,6 @@ public fun series_tracked(passport: &ArktionPassport): u64 {
 public fun identity_snapshot_blob_id(passport: &ArktionPassport): &Option<vector<u8>> {
     &passport.identity_snapshot_blob_id
 }
-
-// ===== Entrypoints =====
 
 /// Mint a new passport. Only callable by AdminCap holder (NestJS wallet).
 public fun mint(_cap: &AdminCap, recipient: address, ctx: &mut TxContext) {
@@ -152,16 +144,11 @@ public fun set_blob_id(
     });
 }
 
-// ===== Internal =====
-
 /// Calculate level based on lifetime INK earned. Thresholds mirror brief §5.
 fun calculate_level(total_ink_earned: u64): u64 {
-    if (total_ink_earned >= 40000) { 6 }
-    else if (total_ink_earned >= 15000) { 5 }
-    else if (total_ink_earned >= 6000) { 4 }
-    else if (total_ink_earned >= 2000) { 3 }
-    else if (total_ink_earned >= 500) { 2 }
-    else { 1 }
+    if (total_ink_earned >= 40000) { 6 } else if (total_ink_earned >= 15000) { 5 } else if (
+        total_ink_earned >= 6000
+    ) { 4 } else if (total_ink_earned >= 2000) { 3 } else if (total_ink_earned >= 500) { 2 } else {
+        1
+    }
 }
-
-// NOTE: No transfer function. Soul-bound at the type level.

@@ -14,11 +14,9 @@
 module arktion::reading_history;
 
 use arktion::admin::AdminCap;
+use std::string::String;
 use sui::dynamic_field;
 use sui::event;
-use std::string::String;
-
-// ===== Status constants =====
 
 // These are kept as documentation for NestJS callers that map status codes.
 #[allow(unused_const)]
@@ -30,14 +28,10 @@ const STATUS_ON_HOLD: u8 = 2;
 const STATUS_DROPPED: u8 = 3;
 const STATUS_PLAN_TO_READ: u8 = 4;
 
-// ===== Error codes =====
-
 /// status value is outside the range 0–4.
 const EInvalidStatus: u64 = 0;
 /// Caller is not the owner of this library.
 const ENotOwner: u64 = 1;
-
-// ===== Structs =====
 
 /// One per user. Owns all ReadingRecord dynamic fields for that user.
 public struct UserLibrary has key {
@@ -58,8 +52,6 @@ public struct ReadingRecord has store {
     completed_at: option::Option<u64>,
 }
 
-// ===== Events =====
-
 public struct ReadingUpdated has copy, drop {
     owner: address,
     series_id: String,
@@ -71,8 +63,6 @@ public struct HistoryArchived has copy, drop {
     owner: address,
     blob_id: vector<u8>,
 }
-
-// ===== Write functions =====
 
 /// Create a new UserLibrary for `recipient`.
 /// Called by NestJS the first time a user signs in.
@@ -115,13 +105,17 @@ public fun add_or_update_record(
         } else {
             option::none()
         };
-        dynamic_field::add(&mut library.id, series_id, ReadingRecord {
+        dynamic_field::add(
+            &mut library.id,
             series_id,
-            status,
-            current_chapter,
-            last_read_at: now,
-            completed_at,
-        });
+            ReadingRecord {
+                series_id,
+                status,
+                current_chapter,
+                last_read_at: now,
+                completed_at,
+            },
+        );
     };
 
     event::emit(ReadingUpdated {
@@ -131,8 +125,6 @@ public fun add_or_update_record(
         current_chapter,
     });
 }
-
-// ===== Test helpers =====
 
 /// Exposes completed_at for a series record so tests can verify it is set once
 /// and never overwritten. Not part of the production API.
