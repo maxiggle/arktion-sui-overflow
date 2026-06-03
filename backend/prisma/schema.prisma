@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
+  output   = "../generated/prisma"
 }
 
 datasource db {
@@ -13,8 +14,8 @@ model User {
   displayName   String?   @map("display_name")
   avatarUrl     String?   @map("avatar_url")
 
-  
-  
+
+
   zkLoginSalt   String    @map("zklogin_salt")
 
   createdAt     DateTime  @default(now()) @map("created_at")
@@ -50,10 +51,6 @@ model Session {
   @@map("sessions")
 }
 
-
-
-
-
 model Passport {
   id              String   @id @default(uuid())
   userId          String   @unique @map("user_id")
@@ -71,10 +68,6 @@ model Passport {
   @@index([suiObjectId])
   @@map("passports")
 }
-
-
-
-
 
 model Series {
   id              String    @id @default(uuid())
@@ -98,10 +91,6 @@ model Series {
   @@map("series")
 }
 
-
-
-
-
 model ReadingRecord {
   id              String    @id @default(uuid())
   userId          String    @map("user_id")
@@ -120,10 +109,6 @@ model ReadingRecord {
   @@index([seriesId])
   @@map("reading_records")
 }
-
-
-
-
 
 model JournalEntry {
   id                    String   @id @default(uuid())
@@ -146,10 +131,6 @@ model JournalEntry {
   @@map("journal_entries")
 }
 
-
-
-
-
 model Submission {
   id              String    @id @default(uuid())
   submitterId     String    @map("submitter_id")
@@ -170,10 +151,6 @@ model Submission {
   @@index([suiObjectId])
   @@map("submissions")
 }
-
-
-
-
 
 model InkLedgerEntry {
   id             String   @id @default(uuid())
@@ -201,10 +178,6 @@ model InkBalance {
   @@map("ink_balances")
 }
 
-
-
-
-
 model EarningRecord {
   id             String   @id @default(uuid())
   userId         String   @map("user_id")
@@ -220,7 +193,6 @@ model EarningRecord {
   @@map("earning_records")
 }
 
-
 model BadgeEarned {
   id             String   @id @default(uuid())
   userId         String   @map("user_id")
@@ -235,13 +207,10 @@ model BadgeEarned {
   user           User     @relation(fields: [userId], references: [id])
   series         Series?  @relation(fields: [seriesId], references: [id])
 
-  
   @@unique([userId, category, badgeType, seriesId])
   @@index([userId])
   @@map("badges_earned")
 }
-
-
 
 model IdempotencyKey {
   key        String   @id

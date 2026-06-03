@@ -4,15 +4,9 @@ import {
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { PrismaClient } from '../../generated/prisma/client';
 
-/**
- * Wraps PrismaClient so NestJS controls its lifecycle. Connects on app start,
- * cleanly disconnects on shutdown. Inject this anywhere you need DB access.
- *
- * Why wrap it: lets you add query logging, mock for tests, and ensures the
- * client connects before the first request rather than lazily.
- */
 @Injectable()
 export class PrismaService
   extends PrismaClient
@@ -21,12 +15,11 @@ export class PrismaService
   private readonly logger = new Logger(PrismaService.name);
 
   constructor() {
+    const adapter = new PrismaPg({
+      connectionString: process.env.DATABASE_URL,
+    });
     super({
-      log: [
-        { emit: 'event', level: 'query' },
-        { emit: 'event', level: 'error' },
-        { emit: 'event', level: 'warn' },
-      ],
+      adapter,
     });
   }
 

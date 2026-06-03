@@ -17,3 +17,5 @@ build/
 
 # Logs
 *.log
+
+/generated/prisma
