@@ -33,19 +33,15 @@
 module arktion::badges;
 
 use arktion::admin::AdminCap;
+use std::string::String;
 use sui::dynamic_field;
 use sui::event;
-use std::string::String;
-
-// ===== Badge category constants =====
 
 const CATEGORY_READING_ACHIEVEMENT: u8 = 0;
 const CATEGORY_COMMUNITY: u8 = 1;
 const CATEGORY_SERIES_LORE: u8 = 2;
 const CATEGORY_CREATOR: u8 = 3;
 const CATEGORY_CONTRIBUTOR: u8 = 4;
-
-// ===== Error codes =====
 
 /// category is outside the range 0–4.
 const EInvalidCategory: u64 = 0;
@@ -55,8 +51,6 @@ const ESeriesIdMismatch: u64 = 1;
 /// A badge with this exact (recipient, category, type, series_id) tuple
 /// has already been minted.
 const EBadgeAlreadyMinted: u64 = 2;
-
-// ===== Structs =====
 
 /// Composite key for content-addressed idempotency. The existence of this key
 /// as a dynamic field on BadgeRegistry proves the badge has been issued.
@@ -87,8 +81,6 @@ public struct BadgeRegistry has key {
     id: UID,
 }
 
-// ===== Events =====
-
 public struct BadgeMinted has copy, drop {
     recipient: address,
     object_id: ID,
@@ -97,8 +89,6 @@ public struct BadgeMinted has copy, drop {
     series_id: String,
     tier: u8,
 }
-
-// ===== Init =====
 
 fun init(ctx: &mut TxContext) {
     let registry = BadgeRegistry { id: object::new(ctx) };
@@ -109,8 +99,6 @@ fun init(ctx: &mut TxContext) {
 public fun init_for_testing(ctx: &mut TxContext) {
     init(ctx);
 }
-
-// ===== Write functions =====
 
 /// Mint a soul-bound badge for `recipient`.
 ///
@@ -174,24 +162,27 @@ public fun mint(
     transfer::transfer(badge, recipient);
 }
 
-// ===== Read-only helpers =====
-
 public fun category(badge: &ArktionBadge): u8 { badge.category }
+
 public fun badge_type(badge: &ArktionBadge): u8 { badge.badge_type }
+
 public fun series_id(badge: &ArktionBadge): String { badge.series_id }
+
 public fun tier(badge: &ArktionBadge): u8 { badge.tier }
+
 public fun awarded_at(badge: &ArktionBadge): u64 { badge.awarded_at }
+
 public fun metadata_blob_id(badge: &ArktionBadge): vector<u8> { badge.metadata_blob_id }
 
-// ===== Category constants exposed for cross-module use =====
-
 public fun category_reading_achievement(): u8 { CATEGORY_READING_ACHIEVEMENT }
-public fun category_community(): u8 { CATEGORY_COMMUNITY }
-public fun category_series_lore(): u8 { CATEGORY_SERIES_LORE }
-public fun category_creator(): u8 { CATEGORY_CREATOR }
-public fun category_contributor(): u8 { CATEGORY_CONTRIBUTOR }
 
-// ===== Test helpers =====
+public fun category_community(): u8 { CATEGORY_COMMUNITY }
+
+public fun category_series_lore(): u8 { CATEGORY_SERIES_LORE }
+
+public fun category_creator(): u8 { CATEGORY_CREATOR }
+
+public fun category_contributor(): u8 { CATEGORY_CONTRIBUTOR }
 
 #[test_only]
 public fun has_badge_for_testing(
@@ -204,5 +195,3 @@ public fun has_badge_for_testing(
     let key = BadgeKey { recipient, category, badge_type, series_id };
     dynamic_field::exists(&registry.id, key)
 }
-
-// NOTE: No transfer function. Soul-bound at the type level.

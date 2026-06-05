@@ -20,14 +20,10 @@ module arktion::admin;
 
 use sui::event;
 
-// ===== Error codes =====
-
 /// Recipient is already registered as an admin.
 const EAlreadyAdmin: u64 = 0;
 /// Target address is not in the admin registry.
 const ENotAdmin: u64 = 1;
-
-// ===== Structs =====
 
 /// Proof of admin authority. Passing `&AdminCap` to any guarded function is
 /// sufficient authorization — Move's ownership model guarantees only the holder
@@ -48,8 +44,6 @@ public struct AdminRegistry has key {
     admins: vector<address>,
 }
 
-// ===== Events =====
-
 public struct AdminGranted has copy, drop {
     recipient: address,
     granted_by: address,
@@ -59,8 +53,6 @@ public struct AdminRevoked has copy, drop {
     target: address,
     revoked_by: address,
 }
-
-// ===== Init =====
 
 /// Runs exactly once when the package is published.
 /// Sends AdminCap to the deployer and creates the shared AdminRegistry
@@ -75,8 +67,6 @@ fun init(ctx: &mut TxContext) {
     };
     transfer::share_object(registry);
 }
-
-// ===== Admin management =====
 
 /// Grant admin access to `recipient`.
 /// Mints a fresh AdminCap and delivers it to `recipient`, then records the
@@ -129,14 +119,10 @@ public fun revoke(
     });
 }
 
-// ===== Test helpers =====
-
 #[test_only]
 public fun init_for_testing(ctx: &mut TxContext) {
     init(ctx);
 }
-
-// ===== Read-only helpers =====
 
 /// Returns true if `addr` is a currently registered admin.
 /// Primary check for NestJS authorization middleware and other modules.

@@ -27,13 +27,9 @@ use std::string::String;
 use sui::coin::TreasuryCap;
 use sui::event;
 
-// ===== Status constants =====
-
 const STATUS_PENDING: u8 = 0;
 const STATUS_APPROVED: u8 = 1;
 const STATUS_REJECTED: u8 = 2;
-
-// ===== Format constants (mirror journal.move) =====
 
 #[allow(unused_const)]
 const FORMAT_NOVEL: u8 = 0;
@@ -45,15 +41,11 @@ const FORMAT_MANHWA: u8 = 2;
 const FORMAT_MANHUA: u8 = 3;
 const FORMAT_WEBTOON: u8 = 4;
 
-// ===== Badge constants =====
-
 /// Contributor badge subtype awarded on submission approval.
 const CONTRIBUTOR_SUBMISSION_APPROVED: u8 = 0;
 
 /// Trigger code matching arktion::ink_earning::SUBMISSION_APPROVED.
 const TRIGGER_SUBMISSION_APPROVED: u8 = 2;
-
-// ===== Error codes =====
 
 /// format_type is outside the range 0–4.
 const EInvalidFormat: u64 = 0;
@@ -63,8 +55,6 @@ const ENotPending: u64 = 1;
 const ENotApproved: u64 = 2;
 /// Reward has already been claimed for this submission.
 const EAlreadyClaimed: u64 = 3;
-
-// ===== Structs =====
 
 /// Community submission. Shared so admins can mutate without submitter co-sign.
 public struct Submission has key {
@@ -79,8 +69,6 @@ public struct Submission has key {
     reward_claimed: bool,
     created_at: u64,
 }
-
-// ===== Events =====
 
 public struct SubmissionCreated has copy, drop {
     object_id: ID,
@@ -105,8 +93,6 @@ public struct RewardClaimed has copy, drop {
     object_id: ID,
     submitter: address,
 }
-
-// ===== Write functions =====
 
 /// Create a new submission. Called by the submitter directly — NestJS builds
 /// the PTB, the submitter signs via zkLogin. No AdminCap required: any user
@@ -230,8 +216,6 @@ public fun claim_reward(
         submitter: submission.submitter,
     });
 }
-
-// ===== Read-only accessors =====
 
 public fun submitter(s: &Submission): address { s.submitter }
 
