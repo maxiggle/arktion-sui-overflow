@@ -22,17 +22,17 @@ enum SuiNetwork {
 
 class EnvironmentVariables {
   @IsEnum(Environment)
-  NODE_ENV: Environment;
+  NODE_ENV!: Environment;
 
   @IsInt()
   @IsOptional()
   PORT: number = 3000;
 
   @IsString()
-  DATABASE_URL: string;
+  DATABASE_URL!: string;
 
   @IsString()
-  JWT_SECRET: string;
+  JWT_SECRET!: string;
 
   @IsString()
   @IsOptional()
@@ -44,25 +44,25 @@ class EnvironmentVariables {
 
   @IsString()
   @IsOptional()
-  SUI_RPC_URL: string;
+  SUI_RPC_URL!: string;
 
   @IsString()
-  SUI_HOT_WALLET_PRIVATE_KEY: string;
+  SUI_HOT_WALLET_PRIVATE_KEY!: string;
 
   @IsString()
-  SUI_PACKAGE_ID: string;
+  SUI_PACKAGE_ID!: string;
 
   @IsString()
-  SUI_ADMIN_REGISTRY_ID: string;
+  SUI_ADMIN_REGISTRY_ID!: string;
 
   @IsString()
-  SUI_EARNING_REGISTRY_ID: string;
+  SUI_EARNING_REGISTRY_ID!: string;
 
   @IsString()
-  SUI_ADMIN_CAP_ID: string;
+  SUI_ADMIN_CAP_ID!: string;
 
   @IsString()
-  SUI_INK_TREASURY_CAP_ID: string;
+  SUI_INK_TREASURY_CAP_ID!: string;
 
   @IsString()
   @IsOptional()
