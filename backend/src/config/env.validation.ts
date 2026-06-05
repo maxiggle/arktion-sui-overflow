@@ -62,7 +62,7 @@ class EnvironmentVariables {
   SUI_ADMIN_CAP_ID: string;
 
   @IsString()
-  SUI_TREASURY_CAP_ID: string;
+  SUI_INK_TREASURY_CAP_ID: string;
 
   @IsString()
   @IsOptional()
