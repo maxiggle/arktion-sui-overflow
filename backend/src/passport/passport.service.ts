@@ -1,8 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import type { SuiClientTypes } from '@mysten/sui/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { SuiService } from '../sui/sui.service';
-import { SuiObjectResponse } from '@mysten/sui/client';
+
+type OnChainPassport = SuiClientTypes.GetObjectResponse<{ json: true }>;
 
 @Injectable()
 export class PassportService {
@@ -41,15 +43,15 @@ export class PassportService {
    * caller explicitly needs the latest on-chain state (e.g. right after a
    * mutation).
    */
-  async findOnChainByObjectId(objectId: string): Promise<SuiObjectResponse> {
-    const result = await this.sui.client.getObject({
-      id: objectId,
-      options: { showContent: true, showType: true },
-    });
-    if (result.error || !result.data) {
+  async findOnChainByObjectId(objectId: string): Promise<OnChainPassport> {
+    try {
+      return await this.sui.client.getObject({
+        objectId,
+        include: { json: true },
+      });
+    } catch {
       throw new NotFoundException('Passport object not found on chain');
     }
-    return result;
   }
 
   private buildExplorerUrl(objectId: string): string {

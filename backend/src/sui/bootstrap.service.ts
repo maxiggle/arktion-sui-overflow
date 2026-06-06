@@ -4,10 +4,9 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import { Transaction } from '@mysten/sui/transactions';
-import { SuiTransactionBlockResponse } from '@mysten/sui/client';
 
 import { SuiService } from './sui.service';
-import { GasService } from './gas.service';
+import { GasService, AdminTxResult } from './gas.service';
 
 export interface BootstrapResult {
   passportObjectId: string;
@@ -29,8 +28,8 @@ export interface BootstrapResult {
  * by the admin keypair (Phase 1 simplification).
  *
  * If the PTB fails, the whole thing rolls back. If it succeeds, we extract the
- * three new object IDs from `result.objectChanges` and return them so the
- * caller can persist them to Postgres.
+ * three new object IDs from `result.Transaction.effects.changedObjects` and
+ * return them so the caller can persist them to Postgres.
  */
 @Injectable()
 export class BootstrapService {
@@ -94,18 +93,20 @@ export class BootstrapService {
       passportObjectId,
       libraryObjectId,
       journalObjectId,
-      digest: result.digest,
+      digest: result.Transaction!.digest,
     };
   }
 
-  private findCreated(
-    result: SuiTransactionBlockResponse,
-    typeSuffix: string,
-  ): string {
-    const change = result.objectChanges?.find(
-      (c) => c.type === 'created' && c.objectType.endsWith(typeSuffix),
-    );
-    if (!change || change.type !== 'created') {
+  private findCreated(result: AdminTxResult, typeSuffix: string): string {
+    const tx = result.Transaction!;
+    const objectTypes = tx.objectTypes ?? {};
+
+    const objectId = tx.effects!.changedObjects
+      .filter((c) => c.idOperation === 'Created')
+      .map((c) => c.objectId)
+      .find((id) => objectTypes[id]?.endsWith(typeSuffix));
+
+    if (!objectId) {
       this.logger.error(`Bootstrap PTB did not create ${typeSuffix}`, {
         result,
       });
@@ -113,6 +114,6 @@ export class BootstrapService {
         `Bootstrap failed: missing ${typeSuffix} in transaction result`,
       );
     }
-    return change.objectId;
+    return objectId;
   }
 }

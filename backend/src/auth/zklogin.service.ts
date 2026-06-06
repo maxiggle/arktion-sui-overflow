@@ -132,6 +132,6 @@ export class ZkLoginService implements OnModuleInit {
    * we look up their stored salt, they get the same wallet they had before.
    */
   deriveAddress(jwtToken: string, salt: string): string {
-    return jwtToAddress(jwtToken, salt);
+    return jwtToAddress(jwtToken, salt, false);
   }
 }

@@ -1,12 +1,13 @@
 {
   "compilerOptions": {
-    "module": "commonjs",
+    "module": "preserve",
     "esModuleInterop": true,
     "isolatedModules": true,
     "declaration": true,
     "removeComments": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
+    "moduleResolution": "bundler",
     "allowSyntheticDefaultImports": true,
     "target": "ES2023",
     "sourceMap": true,

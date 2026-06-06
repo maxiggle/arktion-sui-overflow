@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
-import { SuiClient, getFullnodeUrl } from '@mysten/sui/client';
+import { SuiGrpcClient } from '@mysten/sui/grpc';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 import { decodeSuiPrivateKey } from '@mysten/sui/cryptography';
 
@@ -18,7 +18,7 @@ import { decodeSuiPrivateKey } from '@mysten/sui/cryptography';
 export class SuiService implements OnModuleInit {
   private readonly logger = new Logger(SuiService.name);
 
-  readonly client: SuiClient;
+  readonly client: SuiGrpcClient;
   readonly adminKeypair: Ed25519Keypair;
   readonly gasKeypair: Ed25519Keypair;
 
@@ -30,11 +30,9 @@ export class SuiService implements OnModuleInit {
   readonly badgeRegistryId: string;
 
   constructor(private readonly config: ConfigService) {
-    const network = this.config.get<string>('SUI_NETWORK', 'testnet');
-    this.client = new SuiClient({
-      url: getFullnodeUrl(
-        network as 'testnet' | 'mainnet' | 'devnet' | 'localnet',
-      ),
+    this.client = new SuiGrpcClient({
+      network: 'testnet',
+      baseUrl: 'https://fullnode.testnet.sui.io:443',
     });
 
     this.adminKeypair = this.loadKeypair('ADMIN_SECRET_KEY');
@@ -53,8 +51,8 @@ export class SuiService implements OnModuleInit {
     const gasAddress = this.gasKeypair.toSuiAddress();
 
     try {
-      const checkpoint = await this.client.getLatestCheckpointSequenceNumber();
-      this.logger.log(`Connected to Sui at checkpoint ${checkpoint}`);
+      const val = await this.client.getReferenceGasPrice();
+      this.logger.log(`Connected to Sui at gas price ${val.referenceGasPrice}`);
       this.logger.log(`Admin address:  ${adminAddress}`);
       this.logger.log(`Gas sponsor:    ${gasAddress}`);
     } catch (err) {
@@ -78,10 +76,10 @@ export class SuiService implements OnModuleInit {
   private loadKeypair(envKey: string): Ed25519Keypair {
     const raw = this.requireConfig(envKey);
     try {
-      const { schema, secretKey } = decodeSuiPrivateKey(raw);
-      if (schema !== 'ED25519') {
+      const { scheme, secretKey } = decodeSuiPrivateKey(raw);
+      if (scheme !== 'ED25519') {
         throw new Error(
-          `${envKey} must be an Ed25519 key, got ${schema}. Regenerate with: sui keytool generate ed25519`,
+          `${envKey} must be an Ed25519 key, got ${scheme}. Regenerate with: sui keytool generate ed25519`,
         );
       }
       return Ed25519Keypair.fromSecretKey(secretKey);

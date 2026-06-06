@@ -1,5 +1,5 @@
 import { createParamDecorator, ExecutionContext } from '@nestjs/common';
-import { AuthenticatedUser } from '../types/authenticated-user.type';
+import type { AuthenticatedUser } from '../types/authenticated-user.type';
 
 /**
  * Pulls the authenticated user off the request inside a controller method.

@@ -3,7 +3,7 @@ import { Body, Controller, Get, Patch, UseGuards } from '@nestjs/common';
 import { UsersService, UpdateProfileDto } from './users.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { AuthenticatedUser } from '../common/types/authenticated-user.type';
+import type { AuthenticatedUser } from '../common/types/authenticated-user.type';
 
 @Controller('users')
 @UseGuards(JwtAuthGuard)

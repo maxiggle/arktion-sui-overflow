@@ -7,12 +7,15 @@ import {
 import { ConfigService } from '@nestjs/config';
 
 import { Transaction } from '@mysten/sui/transactions';
-import {
-  SuiTransactionBlockResponse,
-  SuiTransactionBlockResponseOptions,
-} from '@mysten/sui/client';
+import type { SuiClientTypes } from '@mysten/sui/client';
 
 import { SuiService } from './sui.service';
+
+export type AdminTxResult = SuiClientTypes.TransactionResult<{
+  effects: true;
+  events: true;
+  objectTypes: true;
+}>;
 
 /**
  * Wraps every chain mutation. Two responsibilities:
@@ -43,7 +46,6 @@ export class GasService implements OnModuleInit {
   }
 
   async onModuleInit(): Promise<void> {
-    // Log treasury balance at startup so misconfigured deploys are obvious.
     const balance = await this.getTreasuryBalance();
     const balanceInSui = Number(balance) / 1_000_000_000;
     this.logger.log(`Gas treasury balance: ${balanceInSui.toFixed(4)} SUI`);
@@ -63,42 +65,32 @@ export class GasService implements OnModuleInit {
    * Refuses if the gas treasury is below threshold — fail fast rather than
    * letting individual transactions fail with cryptic gas errors.
    */
-  async executeAsAdmin(
-    tx: Transaction,
-    options?: SuiTransactionBlockResponseOptions,
-  ): Promise<SuiTransactionBlockResponse> {
+  async executeAsAdmin(tx: Transaction): Promise<AdminTxResult> {
     await this.assertTreasuryHealthy();
 
     const result = await this.sui.client.signAndExecuteTransaction({
       signer: this.sui.adminKeypair,
       transaction: tx,
-      options: {
-        showEffects: true,
-        showObjectChanges: true,
-        showEvents: true,
-        ...options,
-      },
+      include: { effects: true, events: true, objectTypes: true },
     });
 
-    if (result.effects?.status.status !== 'success') {
-      const error = result.effects?.status.error ?? 'unknown';
-      this.logger.error(`Transaction failed: ${error}`, {
-        digest: result.digest,
+    if (result.$kind === 'FailedTransaction') {
+      const status = result.FailedTransaction.status;
+      const errorMsg = !status.success ? status.error.message : 'unknown';
+      this.logger.error(`Transaction failed: ${errorMsg}`, {
+        digest: result.FailedTransaction.digest,
       });
-      throw new Error(`On-chain execution failed: ${error}`);
+      throw new Error(`On-chain execution failed: ${errorMsg}`);
     }
 
     return result;
   }
 
-  /**
-   * Treasury balance in MIST. 1 SUI = 1_000_000_000 MIST.
-   */
   async getTreasuryBalance(): Promise<bigint> {
-    const { totalBalance } = await this.sui.client.getBalance({
+    const { balance } = await this.sui.client.getBalance({
       owner: this.sui.gasAddress,
     });
-    return BigInt(totalBalance);
+    return BigInt(balance.coinBalance);
   }
 
   private async assertTreasuryHealthy(): Promise<void> {

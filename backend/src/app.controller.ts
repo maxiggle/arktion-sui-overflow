@@ -54,7 +54,7 @@ export class AppController {
 
   private async checkSui(): Promise<'up' | 'down'> {
     try {
-      await this.sui.client.getLatestCheckpointSequenceNumber();
+      await this.sui.client.getReferenceGasPrice();
       return 'up';
     } catch {
       return 'down';

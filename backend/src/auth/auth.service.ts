@@ -257,22 +257,15 @@ export class AuthService {
    * prior chain call actually succeeded.
    */
   private async findExistingBootstrapObjects(walletAddress: string) {
-    const packageId = this.sui.packageId;
-
-    const response = await this.sui.client.getOwnedObjects({
+    const response = await this.sui.client.core.listOwnedObjects({
       owner: walletAddress,
-      filter: {
-        MatchAny: [
-          { StructType: `${packageId}::passport::ArktionPassport` },
-          { StructType: `${packageId}::reading_history::UserLibrary` },
-          { StructType: `${packageId}::journal::UserJournal` },
-        ],
-      },
-      options: { showType: true },
     });
+    for (const obj of response.objects) {
+      console.log(obj.objectId, obj.type);
+    }
 
     const findBySuffix = (suffix: string): string | undefined =>
-      response.data.find((o) => o.data?.type?.endsWith(suffix))?.data?.objectId;
+      response.objects.find((o) => o.type?.endsWith(suffix))?.objectId;
 
     return {
       passportObjectId: findBySuffix('::passport::ArktionPassport'),
