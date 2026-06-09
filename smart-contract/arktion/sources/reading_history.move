@@ -39,7 +39,7 @@ public struct UserLibrary has key {
     owner: address,
     /// Walrus BlobId for archived reading history. Set by NestJS when old records
     /// are pruned from chain and written to cold storage.
-    history_blob_id: option::Option<vector<u8>>,
+    history_blob_id: Option<vector<u8>>,
 }
 
 /// Stored as a dynamic field inside UserLibrary, keyed by series_id.
@@ -49,7 +49,7 @@ public struct ReadingRecord has store {
     status: u8,
     current_chapter: u64,
     last_read_at: u64,
-    completed_at: option::Option<u64>,
+    completed_at: Option<u64>,
 }
 
 public struct ReadingUpdated has copy, drop {

@@ -196,7 +196,7 @@ fun test_passport_set_blob_id() {
     {
         let cap = s.take_from_sender<AdminCap>();
         let mut p = s.take_from_sender<ArktionPassport>();
-        passport::set_blob_id(&cap, &mut p, b"walrus-blob-123", s.ctx());
+        passport::set_blob_id(&cap, &mut p, b"walrus-blob-123");
         assert!(passport::identity_snapshot_blob_id(&p).is_some());
         s.return_to_sender(p);
         s.return_to_sender(cap);
@@ -218,9 +218,9 @@ fun test_passport_blob_id_overwrites() {
     {
         let cap = s.take_from_sender<AdminCap>();
         let mut p = s.take_from_sender<ArktionPassport>();
-        passport::set_blob_id(&cap, &mut p, b"blob-v1", s.ctx());
+        passport::set_blob_id(&cap, &mut p, b"blob-v1");
         assert!(*passport::identity_snapshot_blob_id(&p).borrow() == b"blob-v1");
-        passport::set_blob_id(&cap, &mut p, b"blob-v2", s.ctx());
+        passport::set_blob_id(&cap, &mut p, b"blob-v2");
         assert!(*passport::identity_snapshot_blob_id(&p).borrow() == b"blob-v2");
         s.return_to_sender(p);
         s.return_to_sender(cap);

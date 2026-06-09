@@ -134,7 +134,6 @@ public fun set_blob_id(
     _cap: &AdminCap,
     passport: &mut ArktionPassport,
     blob_id: vector<u8>,
-    _ctx: &mut TxContext,
 ) {
     passport.identity_snapshot_blob_id = option::some(blob_id);
 
@@ -146,9 +145,10 @@ public fun set_blob_id(
 
 /// Calculate level based on lifetime INK earned. Thresholds mirror brief §5.
 fun calculate_level(total_ink_earned: u64): u64 {
-    if (total_ink_earned >= 40000) { 6 } else if (total_ink_earned >= 15000) { 5 } else if (
-        total_ink_earned >= 6000
-    ) { 4 } else if (total_ink_earned >= 2000) { 3 } else if (total_ink_earned >= 500) { 2 } else {
-        1
-    }
+    if (total_ink_earned >= 40000) { 6 }
+    else if (total_ink_earned >= 15000) { 5 }
+    else if (total_ink_earned >= 6000) { 4 }
+    else if (total_ink_earned >= 2000) { 3 }
+    else if (total_ink_earned >= 500) { 2 }
+    else { 1 }
 }
