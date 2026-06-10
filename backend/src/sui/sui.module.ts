@@ -3,6 +3,7 @@ import { Global, Module } from '@nestjs/common';
 import { SuiService } from './sui.service';
 import { GasService } from './gas.service';
 import { BootstrapService } from './bootstrap.service';
+import { WalrusService } from './walrus.service';
 
 /**
  * Global because every feature module needs Sui access. Exposed services:
@@ -10,12 +11,11 @@ import { BootstrapService } from './bootstrap.service';
  *   - SuiService       — raw client, keypairs, deployment object IDs
  *   - GasService       — gas-sponsored transaction execution + treasury monitoring
  *   - BootstrapService — one-shot mint of passport + library + journal on first login
- *
- * WalrusService joins this module in Batch 4 (passport snapshot work).
+ *   - WalrusService    — blob upload/download for reading history snapshots + badge metadata
  */
 @Global()
 @Module({
-  providers: [SuiService, GasService, BootstrapService],
-  exports: [SuiService, GasService, BootstrapService],
+  providers: [SuiService, GasService, BootstrapService, WalrusService],
+  exports: [SuiService, GasService, BootstrapService, WalrusService],
 })
 export class SuiModule {}
