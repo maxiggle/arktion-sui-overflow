@@ -38,7 +38,9 @@ interface MangaDexManga {
     description: Record<string, string>;
     originalLanguage: string;
     status: string;
-    tags: Array<{ attributes: { name: Record<string, string>; group: string } }>;
+    tags: Array<{
+      attributes: { name: Record<string, string>; group: string };
+    }>;
     lastChapter: string | null;
   };
 }
@@ -47,11 +49,6 @@ interface MangaDexCoverRelation {
   id: string;
   type: string;
   attributes?: { fileName: string };
-}
-
-interface MangaDexResponse {
-  data: MangaDexManga[];
-  total: number;
 }
 
 async function fetchManga(
@@ -64,8 +61,8 @@ async function fetchManga(
     offset: String(offset),
     'includes[]': 'cover_art',
     'order[followedCount]': 'desc',
-    availableTranslatedLanguage: 'en',
   });
+  params.append('availableTranslatedLanguage[]', 'en');
   params.append('contentRating[]', 'safe');
   params.append('contentRating[]', 'suggestive');
 
@@ -164,7 +161,10 @@ async function main(): Promise<void> {
     try {
       mangaList = await fetchManga(0, batch.limit, batch.languages);
     } catch (err) {
-      console.error(`  ✗ Failed to fetch ${batch.label}:`, (err as Error).message);
+      console.error(
+        `  ✗ Failed to fetch ${batch.label}:`,
+        (err as Error).message,
+      );
       continue;
     }
 
@@ -209,13 +209,18 @@ async function main(): Promise<void> {
           result.createdAt.getTime() === result.updatedAt?.getTime();
         if (wasCreated) {
           created++;
-          console.log(`  ✓ ${title} [${formatType === 2 ? 'manhwa' : formatType === 3 ? 'manhua' : 'manga'}]`);
+          console.log(
+            `  ✓ ${title} [${formatType === 2 ? 'manhwa' : formatType === 3 ? 'manhua' : 'manga'}]`,
+          );
         } else {
           skipped++;
           console.log(`  → ${title} (already exists, updated)`);
         }
       } catch (err) {
-        console.error(`  ✗ Failed to upsert "${title}":`, (err as Error).message);
+        console.error(
+          `  ✗ Failed to upsert "${title}":`,
+          (err as Error).message,
+        );
       }
     }
 
@@ -223,7 +228,9 @@ async function main(): Promise<void> {
   }
 
   console.log('─'.repeat(50));
-  console.log(`Done. Processed: ${total} | Created: ${created} | Updated/skipped: ${skipped}`);
+  console.log(
+    `Done. Processed: ${total} | Created: ${created} | Updated/skipped: ${skipped}`,
+  );
 }
 
 main()

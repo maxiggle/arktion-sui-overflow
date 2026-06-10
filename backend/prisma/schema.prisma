@@ -87,16 +87,64 @@ model Series {
   description     String?   @db.Text
   status          String    @default("ongoing")
   metadataBlobId  String?   @map("metadata_blob_id")
+  /// Last time the chapter list was synced from the external source (MangaDex).
+  chaptersSyncedAt DateTime? @map("chapters_synced_at")
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
   deletedAt       DateTime? @map("deleted_at")
 
   readingRecords  ReadingRecord[]
   badgesEarned    BadgeEarned[]
+  chapters        Chapter[]
 
   @@index([externalId])
   @@index([title])
   @@map("series")
+}
+
+model Chapter {
+  id            String    @id @default(uuid())
+  seriesId      String    @map("series_id")
+  /// External chapter id from the upstream source (MangaDex chapter UUID for Phase 1).
+  /// Null when the chapter was uploaded directly via Comic Studio (Phase 2).
+  externalId    String?   @unique @map("external_id")
+  /// Decimal so half-chapters like 1.5 work for manga side stories.
+  chapterNumber Float     @map("chapter_number")
+  title         String?
+  /// Translation language. ISO 639-1 (e.g. "en", "ja").
+  language      String    @default("en")
+  pageCount     Int       @default(0) @map("page_count")
+  /// Phase 2 paid-chapter gate. Phase 1 chapters are always free.
+  isLicensed    Boolean   @default(false) @map("is_licensed")
+  inkCost       Int       @default(0) @map("ink_cost")
+  publishedAt   DateTime? @map("published_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
+
+  series        Series    @relation(fields: [seriesId], references: [id])
+  pages         Page[]
+
+  @@unique([seriesId, language, chapterNumber])
+  @@index([seriesId, language])
+  @@index([externalId])
+  @@map("chapters")
+}
+
+model Page {
+  id         String   @id @default(uuid())
+  chapterId  String   @map("chapter_id")
+  pageNumber Int      @map("page_number")
+  imageUrl   String   @map("image_url") @db.Text
+  width      Int?
+  height     Int?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  chapter    Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@unique([chapterId, pageNumber])
+  @@index([chapterId])
+  @@map("pages")
 }
 
 model ReadingRecord {
@@ -231,15 +279,76 @@ model IdempotencyKey {
   @@map("idempotency_keys")
 }
 
-model AdminActionLog {
-  id           String   @id @default(uuid())
-  adminAddress String   @map("admin_address")
-  actionType   String   @map("action_type")
-  targetId     String?  @map("target_id")
-  notes        String?  @db.Text
-  createdAt    DateTime @default(now()) @map("created_at")
 
-  @@index([adminAddress])
+
+enum AdminRole {
+  SUPER_ADMIN
+  MODERATOR
+  REVIEWER
+}
+
+model AdminUser {
+  id                  String    @id @default(uuid())
+  email               String    @unique
+  passwordHash        String    @map("password_hash")
+  role                AdminRole @default(REVIEWER)
+  isActive            Boolean   @default(true) @map("is_active")
+
+  /// AES-256-GCM encrypted TOTP secret (iv:authTag:ciphertext, hex-encoded)
+  totpSecret          String?   @map("totp_secret")
+  totpEnabled         Boolean   @default(false) @map("totp_enabled")
+  /// bcrypt-hashed single-use backup codes
+  totpBackupCodes     String[]  @map("totp_backup_codes")
+
+  failedLoginAttempts Int       @default(0) @map("failed_login_attempts")
+  lockedUntil         DateTime? @map("locked_until")
+  lastLoginAt         DateTime? @map("last_login_at")
+  lastLoginIp         String?   @map("last_login_ip")
+
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  sessions            AdminSession[]
+  actionLogs          AdminActionLog[]
+
+  @@index([email])
+  @@map("admin_users")
+}
+
+model AdminSession {
+  id               String    @id @default(uuid())
+  adminId          String    @map("admin_id")
+  /// SHA-256(refresh_token) — used for refresh token verification & revocation
+  refreshTokenHash String    @map("refresh_token_hash")
+  ipAddress        String?   @map("ip_address")
+  userAgent        String?   @map("user_agent") @db.Text
+  /// Expiry of the refresh token (7 days). Access tokens self-expire via JWT exp.
+  expiresAt        DateTime  @map("expires_at")
+  revokedAt        DateTime? @map("revoked_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  lastUsedAt       DateTime  @default(now()) @map("last_used_at")
+
+  admin            AdminUser @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@index([refreshTokenHash])
+  @@map("admin_sessions")
+}
+
+model AdminActionLog {
+  id          String     @id @default(uuid())
+  adminId     String?    @map("admin_id")
+  actionType  String     @map("action_type")
+  targetId    String?    @map("target_id")
+  targetType  String?    @map("target_type")
+  metadata    Json?
+  ipAddress   String?    @map("ip_address")
+  createdAt   DateTime   @default(now()) @map("created_at")
+
+  admin       AdminUser? @relation(fields: [adminId], references: [id])
+
+  @@index([adminId])
   @@index([actionType])
+  @@index([createdAt])
   @@map("admin_action_logs")
 }

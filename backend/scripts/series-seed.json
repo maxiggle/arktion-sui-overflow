@@ -1,0 +1,74 @@
+[
+  {
+    "externalId": "seed-one-piece",
+    "title": "One Piece",
+    "formatType": 1,
+    "sourceLanguage": "ja",
+    "status": "ongoing",
+    "coverUrl": "https://uploads.mangadex.org/covers/a1c7c817-4e59-43b7-9365-09675a149a6f/cover.jpg",
+    "description": "Monkey D. Luffy sets out on a journey to find the legendary One Piece and become the Pirate King."
+  },
+  {
+    "externalId": "seed-solo-leveling",
+    "title": "Solo Leveling",
+    "formatType": 2,
+    "sourceLanguage": "ko",
+    "status": "completed",
+    "coverUrl": "https://uploads.mangadex.org/covers/32d76d19-8a05-4db0-9fc2-e0b0648fe9d0/cover.jpg",
+    "description": "The weakest hunter on Earth gains the ability to level up without limit."
+  },
+  {
+    "externalId": "seed-tower-of-god",
+    "title": "Tower of God",
+    "formatType": 4,
+    "sourceLanguage": "ko",
+    "status": "ongoing",
+    "coverUrl": "https://uploads.mangadex.org/covers/4ed81df4-1b48-457f-9b46-3a9c1d4ad9a4/cover.jpg",
+    "description": "A boy chases his friend into a mysterious tower where his greatest desires await."
+  },
+  {
+    "externalId": "seed-soul-land",
+    "title": "Soul Land",
+    "formatType": 3,
+    "sourceLanguage": "zh",
+    "status": "ongoing",
+    "coverUrl": null,
+    "description": "Tang San awakens twin martial spirits and rises through the academies of Douluo Continent."
+  },
+  {
+    "externalId": "seed-re-zero",
+    "title": "Re:Zero − Starting Life in Another World",
+    "formatType": 0,
+    "sourceLanguage": "ja",
+    "status": "ongoing",
+    "coverUrl": null,
+    "description": "Subaru is transported to a fantasy world where dying resets him to a checkpoint."
+  },
+  {
+    "externalId": "seed-frieren",
+    "title": "Frieren: Beyond Journey's End",
+    "formatType": 1,
+    "sourceLanguage": "ja",
+    "status": "ongoing",
+    "coverUrl": "https://uploads.mangadex.org/covers/b0b721ff-c388-4486-aa0f-c2b0bb321512/cover.jpg",
+    "description": "An elven mage outlives her hero party and sets out to truly understand humanity."
+  },
+  {
+    "externalId": "seed-omniscient-reader",
+    "title": "Omniscient Reader's Viewpoint",
+    "formatType": 2,
+    "sourceLanguage": "ko",
+    "status": "ongoing",
+    "coverUrl": null,
+    "description": "The only reader of a long-running web novel finds himself inside its apocalyptic finale."
+  },
+  {
+    "externalId": "seed-chainsaw-man",
+    "title": "Chainsaw Man",
+    "formatType": 1,
+    "sourceLanguage": "ja",
+    "status": "ongoing",
+    "coverUrl": "https://uploads.mangadex.org/covers/e1cd2eb2-c34c-4bff-b81a-4bb9e6dde88c/cover.jpg",
+    "description": "Denji fuses with his chainsaw devil dog and is conscripted into Tokyo's devil hunters."
+  }
+]
