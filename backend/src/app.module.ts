@@ -13,6 +13,7 @@ import { SeriesModule } from './series/series.module';
 import { ReadingModule } from './reading/reading.module';
 import { JournalModule } from './journal/journal.module';
 import { SubmissionModule } from './submission/submission.module';
+import { AdminModule } from './admin/admin.module';
 import { AppController } from './app.controller';
 
 @Module({
@@ -37,6 +38,8 @@ import { AppController } from './app.controller';
     ReadingModule,
     JournalModule,
     SubmissionModule,
+    // Admin
+    AdminModule,
   ],
   controllers: [AppController],
 })

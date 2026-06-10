@@ -99,6 +99,30 @@ class EnvironmentVariables {
   @IsOptional()
   WALRUS_AGGREGATOR_URL: string =
     'https://aggregator.walrus-testnet.walrus.space';
+
+  // ─── Admin Auth ─────────────────────────────────────────────────────────────
+
+  /**
+   * Secret for signing admin JWTs (access + refresh + pre-auth tokens).
+   * Must be at least 32 chars. Keep separate from user JWT_SECRET.
+   */
+  @IsString()
+  ADMIN_JWT_SECRET!: string;
+
+  /**
+   * Issuer name shown in authenticator apps (e.g. "Arktion Admin").
+   */
+  @IsString()
+  @IsOptional()
+  TOTP_ISSUER: string = 'Arktion Admin';
+
+  /**
+   * AES-256-GCM key for encrypting TOTP secrets at rest.
+   * Must be exactly 64 hex characters (32 bytes).
+   * Generate: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+   */
+  @IsString()
+  TOTP_ENCRYPTION_KEY!: string;
 }
 
 export function validate(config: Record<string, unknown>) {
