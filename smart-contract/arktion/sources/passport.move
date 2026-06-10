@@ -14,7 +14,11 @@
 module arktion::passport;
 
 use arktion::admin::AdminCap;
+use sui::display;
 use sui::event;
+use sui::package;
+
+public struct PASSPORT has drop {}
 
 public struct ArktionPassport has key {
     id: UID,
@@ -49,6 +53,27 @@ public struct StatsUpdated has copy, drop {
 public struct BlobIdSet has copy, drop {
     object_id: ID,
     owner: address,
+}
+
+fun init(otw: PASSPORT, ctx: &mut TxContext) {
+    let publisher = package::claim(otw, ctx);
+    let mut display = display::new<ArktionPassport>(&publisher, ctx);
+
+    display.add(b"name".to_string(), b"Arktion Passport".to_string());
+    display.add(
+        b"description".to_string(),
+        b"Soul-bound reading identity on Sui. Level {level} \xc2\xb7 {chapters_read} chapters read.".to_string(),
+    );
+    display.add(
+        b"image_url".to_string(),
+        b"https://api.arktion.app/passport/{owner}/image.svg".to_string(),
+    );
+    display.add(b"project_url".to_string(), b"https://arktion.app".to_string());
+    display.add(b"creator".to_string(), b"Arktion".to_string());
+
+    display.update_version();
+    transfer::public_transfer(display, ctx.sender());
+    transfer::public_transfer(publisher, ctx.sender());
 }
 
 public fun owner(passport: &ArktionPassport): address {

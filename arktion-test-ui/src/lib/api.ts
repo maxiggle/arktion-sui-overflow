@@ -1,6 +1,7 @@
 import { clearSession, getSessionToken, type StoredUser } from './auth-storage';
+import { clearAdminSession, getAdminToken } from './admin-auth';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000/api/v1';
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000/api/v1';
 
 // /health is mounted at the origin root by the backend, NOT under /api/v1.
 const HEALTH_URL = `${API_BASE_URL.replace(/\/api\/v1\/?$/, '')}/health`;
@@ -28,17 +29,26 @@ export class ApiError extends Error {
 interface RequestOptions {
   method?: string;
   body?: unknown;
-  // Attach the bearer token. Defaults to true.
-  auth?: boolean;
+  // Auth scope:
+  //   'user'  → attach the zkLogin session token (default)
+  //   'admin' → attach the admin access token
+  //   'none'  → no Authorization header
+  auth?: 'user' | 'admin' | 'none' | boolean;
 }
 
 export async function apiFetch<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { method = 'GET', body, auth = true } = options;
+  const { method = 'GET', body, auth = 'user' } = options;
+  // Back-compat with the original `auth?: boolean` API.
+  const authScope: 'user' | 'admin' | 'none' =
+    auth === false ? 'none' : auth === true ? 'user' : auth;
 
   const headers: Record<string, string> = {};
   if (body !== undefined) headers['Content-Type'] = 'application/json';
-  if (auth) {
+  if (authScope === 'user') {
     const token = getSessionToken();
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+  } else if (authScope === 'admin') {
+    const token = getAdminToken();
     if (token) headers['Authorization'] = `Bearer ${token}`;
   }
 
@@ -48,10 +58,14 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
     body: body === undefined ? undefined : JSON.stringify(body),
   });
 
-  // Session expired or revoked: drop local auth and re-prompt sign-in.
+  // Session expired or revoked: drop the matching local auth.
   if (res.status === 401) {
-    clearSession();
-    notifyAuthChanged();
+    if (authScope === 'admin') {
+      clearAdminSession();
+    } else if (authScope === 'user') {
+      clearSession();
+      notifyAuthChanged();
+    }
   }
 
   if (!res.ok) {
@@ -107,8 +121,19 @@ export interface PassportResponse {
   seriesCompleted: number;
   seriesTracked: number;
   identityBlobId: string | null;
+  identityBlobUrl: string | null;
   lastSyncedAt: string;
   explorerUrl: string;
+  walletAddress: string;
+  imageUrl: string | null;
+}
+
+export interface SnapshotResult {
+  blobId: string;
+  walrusUrl: string;
+  snapshotAt: string;
+  recordCount: number;
+  onChainAnchored: boolean;
 }
 
 export interface UpdateProfileBody {
@@ -131,7 +156,7 @@ export function completeZkLogin(jwt: string): Promise<ZkLoginCompleteResponse> {
   return apiFetch<ZkLoginCompleteResponse>('/auth/zklogin/complete', {
     method: 'POST',
     body: { jwt },
-    auth: false,
+    auth: 'none',
   });
 }
 
@@ -149,6 +174,10 @@ export function updateMyProfile(body: UpdateProfileBody): Promise<UserProfile> {
 
 export function getMyPassport(): Promise<PassportResponse> {
   return apiFetch<PassportResponse>('/passport/me');
+}
+
+export function takePassportSnapshot(): Promise<SnapshotResult> {
+  return apiFetch<SnapshotResult>('/passport/snapshot', { method: 'POST' });
 }
 
 // ── INK ──────────────────────────────────────────────────────────────────────
@@ -253,7 +282,51 @@ export function getSeries(params: {
   if (params.status) q.set('status', params.status);
   q.set('page', String(params.page ?? 1));
   q.set('limit', String(params.limit ?? 10));
-  return apiFetch<SeriesPage>(`/series?${q.toString()}`, { auth: false });
+  return apiFetch<SeriesPage>(`/series?${q.toString()}`, { auth: 'none' });
+}
+
+// ── CHAPTERS / READER ────────────────────────────────────────────────────────
+
+export interface ChapterDto {
+  id: string;
+  seriesId: string;
+  chapterNumber: number;
+  title: string | null;
+  language: string;
+  pageCount: number;
+  isLicensed: boolean;
+  inkCost: number;
+  publishedAt: string | null;
+}
+
+export interface PageDto {
+  pageNumber: number;
+  imageUrl: string;
+}
+
+export function getChapters(
+  seriesId: string,
+  language = 'en',
+  refresh = false,
+): Promise<ChapterDto[]> {
+  const q = new URLSearchParams({ language });
+  if (refresh) q.set('refresh', 'true');
+  return apiFetch<ChapterDto[]>(`/series/${seriesId}/chapters?${q.toString()}`, {
+    auth: 'none',
+  });
+}
+
+export function getChapterPages(
+  chapterId: string,
+  dataSaver = false,
+): Promise<PageDto[]> {
+  const q = new URLSearchParams();
+  if (dataSaver) q.set('dataSaver', 'true');
+  const qs = q.toString();
+  return apiFetch<PageDto[]>(
+    `/chapters/${chapterId}/pages${qs ? `?${qs}` : ''}`,
+    { auth: 'none' },
+  );
 }
 
 // ── READING ──────────────────────────────────────────────────────────────────
@@ -363,13 +436,161 @@ export function getMySubmissions(): Promise<SubmissionDto[]> {
 }
 
 export function getPendingSubmissions(): Promise<SubmissionDto[]> {
-  return apiFetch<SubmissionDto[]>('/submissions/pending');
+  return apiFetch<SubmissionDto[]>('/submissions/pending', { auth: 'admin' });
 }
 
 export function approveSubmission(id: string): Promise<SubmissionDto> {
-  return apiFetch<SubmissionDto>(`/submissions/${id}/approve`, { method: 'POST' });
+  return apiFetch<SubmissionDto>(`/submissions/${id}/approve`, {
+    method: 'POST',
+    auth: 'admin',
+  });
 }
 
 export function rejectSubmission(id: string): Promise<SubmissionDto> {
-  return apiFetch<SubmissionDto>(`/submissions/${id}/reject`, { method: 'POST' });
+  return apiFetch<SubmissionDto>(`/submissions/${id}/reject`, {
+    method: 'POST',
+    auth: 'admin',
+  });
+}
+
+// ── ADMIN AUTH ───────────────────────────────────────────────────────────────
+
+export interface AdminTokenPair {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number;
+}
+
+export interface AdminLoginResponse {
+  requiresTotp: boolean;
+  preAuthToken?: string;
+  tokens?: AdminTokenPair;
+}
+
+export interface AdminTotpSetupResponse {
+  secret: string;
+  otpauthUrl: string;
+  backupCodes: string[];
+}
+
+export interface AdminTotpConfirmResponse {
+  message: string;
+  backupCodes: string[];
+}
+
+export function adminLogin(body: {
+  email: string;
+  password: string;
+}): Promise<AdminLoginResponse> {
+  return apiFetch<AdminLoginResponse>('/admin/auth/login', {
+    method: 'POST',
+    body,
+    auth: 'none',
+  });
+}
+
+export function adminValidateTotp(body: {
+  preAuthToken: string;
+  code: string;
+}): Promise<AdminTokenPair> {
+  return apiFetch<AdminTokenPair>('/admin/auth/totp/validate', {
+    method: 'POST',
+    body,
+    auth: 'none',
+  });
+}
+
+export function adminLogout(): Promise<void> {
+  return apiFetch<void>('/admin/auth/logout', {
+    method: 'DELETE',
+    auth: 'admin',
+  });
+}
+
+export function adminLogoutAll(): Promise<void> {
+  return apiFetch<void>('/admin/auth/logout/all', {
+    method: 'DELETE',
+    auth: 'admin',
+  });
+}
+
+export function adminInitTotpSetup(): Promise<AdminTotpSetupResponse> {
+  return apiFetch<AdminTotpSetupResponse>('/admin/auth/totp/setup/init', {
+    method: 'POST',
+    auth: 'admin',
+  });
+}
+
+export function adminConfirmTotpSetup(code: string): Promise<AdminTotpConfirmResponse> {
+  return apiFetch<AdminTotpConfirmResponse>('/admin/auth/totp/setup/confirm', {
+    method: 'POST',
+    body: { code },
+    auth: 'admin',
+  });
+}
+
+export function adminDisableTotp(code: string): Promise<void> {
+  return apiFetch<void>('/admin/auth/totp', {
+    method: 'DELETE',
+    body: { code },
+    auth: 'admin',
+  });
+}
+
+// ── ADMIN USERS ──────────────────────────────────────────────────────────────
+
+export type AdminRoleStr = 'SUPER_ADMIN' | 'MODERATOR' | 'REVIEWER';
+
+export interface AdminUserDto {
+  id: string;
+  email: string;
+  role: AdminRoleStr;
+  isActive: boolean;
+  totpEnabled: boolean;
+  lastLoginAt: string | null;
+  lastLoginIp: string | null;
+  createdAt: string;
+}
+
+export const ADMIN_ROLES: AdminRoleStr[] = ['REVIEWER', 'MODERATOR', 'SUPER_ADMIN'];
+
+export function getAdminUsers(): Promise<AdminUserDto[]> {
+  return apiFetch<AdminUserDto[]>('/admin/users', { auth: 'admin' });
+}
+
+export function createAdminUser(body: {
+  email: string;
+  password: string;
+  role: AdminRoleStr;
+}): Promise<AdminUserDto> {
+  return apiFetch<AdminUserDto>('/admin/users', {
+    method: 'POST',
+    body,
+    auth: 'admin',
+  });
+}
+
+export function updateAdminUserRole(
+  id: string,
+  role: AdminRoleStr,
+): Promise<AdminUserDto> {
+  return apiFetch<AdminUserDto>(`/admin/users/${id}/role`, {
+    method: 'PATCH',
+    body: { role },
+    auth: 'admin',
+  });
+}
+
+export function deactivateAdminUser(id: string): Promise<void> {
+  return apiFetch<void>(`/admin/users/${id}/deactivate`, {
+    method: 'POST',
+    auth: 'admin',
+  });
+}
+
+export function activateAdminUser(id: string): Promise<void> {
+  return apiFetch<void>(`/admin/users/${id}/activate`, {
+    method: 'POST',
+    auth: 'admin',
+  });
 }

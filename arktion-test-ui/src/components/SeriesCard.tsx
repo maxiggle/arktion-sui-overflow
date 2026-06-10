@@ -19,7 +19,11 @@ const STATUS_COLORS: Record<string, string> = {
   dropped: 'text-red-400',
 };
 
-export function SeriesCard({ onSelectSeries }: { onSelectSeries?: (id: string, title: string) => void }) {
+export function SeriesCard({
+  onSelectSeries,
+}: {
+  onSelectSeries?: (series: SeriesDto) => void;
+}) {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [formatType, setFormatType] = useState('');
@@ -52,7 +56,7 @@ export function SeriesCard({ onSelectSeries }: { onSelectSeries?: (id: string, t
     navigator.clipboard.writeText(series.id);
     setCopied(series.id);
     setTimeout(() => setCopied(null), 1500);
-    onSelectSeries?.(series.id, series.title);
+    onSelectSeries?.(series);
   }
 
   return (
