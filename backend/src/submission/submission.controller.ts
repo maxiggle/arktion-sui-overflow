@@ -8,18 +8,23 @@ import {
   ParseUUIDPipe,
   Post,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 
 import { SubmissionService } from './submission.service';
 import { CreateSubmissionDto } from './dto/create-submission.dto';
 import type { SubmissionDto } from './dto/submission.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { AdminGuard } from '../common/guards/admin.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../common/types/authenticated-user.type';
+import { AdminJwtGuard } from '../admin/guards/admin-jwt.guard';
+import { AdminRoleGuard } from '../admin/guards/admin-role.guard';
+import { RequireRole } from '../admin/decorators/require-role.decorator';
+import { AuditLog } from '../admin/decorators/audit-log.decorator';
+import { AuditLogInterceptor } from '../admin/interceptors/audit-log.interceptor';
+import { AdminRole } from '../admin/types/admin-role.enum';
 
 @Controller('submissions')
-@UseGuards(JwtAuthGuard)
 export class SubmissionController {
   constructor(private readonly submissionService: SubmissionService) {}
 
@@ -29,6 +34,7 @@ export class SubmissionController {
    * Submit a series suggestion. Open to all authenticated users.
    */
   @Post()
+  @UseGuards(JwtAuthGuard)
   async create(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CreateSubmissionDto,
@@ -42,6 +48,7 @@ export class SubmissionController {
    * All submissions created by the authenticated user.
    */
   @Get('mine')
+  @UseGuards(JwtAuthGuard)
   async getMySubmissions(
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<SubmissionDto[]> {
@@ -51,10 +58,11 @@ export class SubmissionController {
   /**
    * GET /api/v1/submissions/pending
    *
-   * All pending submissions, oldest first. Admin only.
+   * All pending submissions, oldest first. REVIEWER+ admin only.
    */
   @Get('pending')
-  @UseGuards(AdminGuard)
+  @UseGuards(AdminJwtGuard, AdminRoleGuard)
+  @RequireRole(AdminRole.REVIEWER)
   async getPending(): Promise<SubmissionDto[]> {
     return this.submissionService.getPending();
   }
@@ -63,13 +71,15 @@ export class SubmissionController {
    * POST /api/v1/submissions/:id/approve
    *
    * Approve a pending submission. Atomically mints 50 INK + Contributor badge
-   * for the submitter via a single PTB. Admin only.
+   * for the submitter via a single PTB. MODERATOR+ admin only.
    */
   @Post(':id/approve')
-  @UseGuards(AdminGuard)
+  @UseGuards(AdminJwtGuard, AdminRoleGuard)
+  @RequireRole(AdminRole.MODERATOR)
+  @UseInterceptors(AuditLogInterceptor)
+  @AuditLog({ actionType: 'SUBMISSION_APPROVE', targetType: 'Submission' })
   @HttpCode(HttpStatus.OK)
   async approve(
-    @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<SubmissionDto> {
     return this.submissionService.approve(id);
@@ -78,10 +88,13 @@ export class SubmissionController {
   /**
    * POST /api/v1/submissions/:id/reject
    *
-   * Reject a pending submission. Postgres only — no chain call. Admin only.
+   * Reject a pending submission. Postgres only — no chain call. MODERATOR+ admin only.
    */
   @Post(':id/reject')
-  @UseGuards(AdminGuard)
+  @UseGuards(AdminJwtGuard, AdminRoleGuard)
+  @RequireRole(AdminRole.MODERATOR)
+  @UseInterceptors(AuditLogInterceptor)
+  @AuditLog({ actionType: 'SUBMISSION_REJECT', targetType: 'Submission' })
   @HttpCode(HttpStatus.OK)
   async reject(@Param('id', ParseUUIDPipe) id: string): Promise<SubmissionDto> {
     return this.submissionService.reject(id);

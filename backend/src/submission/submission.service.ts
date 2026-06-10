@@ -123,6 +123,18 @@ export class SubmissionService {
       `Approving submission ${submissionId} for user ${submitter.id}`,
     );
 
+    // Check if this user already has the Contributor badge — the contract
+    // enforces (recipient, category, badge_type, series_id) uniqueness and
+    // will abort with EBadgeAlreadyMinted on a second mint attempt.
+    const alreadyHasBadge = !!(await this.prisma.badgeEarned.findFirst({
+      where: {
+        userId: submitter.id,
+        category: BadgeCategory.CONTRIBUTOR,
+        badgeType: ContributorBadgeType.SUBMISSION_APPROVED,
+        seriesId: null,
+      },
+    }));
+
     const tx = new Transaction();
 
     tx.moveCall({
@@ -137,24 +149,26 @@ export class SubmissionService {
       ],
     });
 
-    tx.moveCall({
-      target: `${this.sui.packageId}::badges::mint`,
-      arguments: [
-        tx.object(this.sui.adminCapId),
-        tx.object(this.sui.badgeRegistryId),
-        tx.pure.address(submitter.walletAddress),
-        tx.pure(bcs.u8().serialize(BadgeCategory.CONTRIBUTOR).toBytes()),
-        tx.pure(
-          bcs
-            .u8()
-            .serialize(ContributorBadgeType.SUBMISSION_APPROVED)
-            .toBytes(),
-        ),
-        tx.pure(bcs.string().serialize('').toBytes()),
-        tx.pure(bcs.u8().serialize(0).toBytes()),
-        tx.pure(bcs.vector(bcs.u8()).serialize([]).toBytes()),
-      ],
-    });
+    if (!alreadyHasBadge) {
+      tx.moveCall({
+        target: `${this.sui.packageId}::badges::mint`,
+        arguments: [
+          tx.object(this.sui.adminCapId),
+          tx.object(this.sui.badgeRegistryId),
+          tx.pure.address(submitter.walletAddress),
+          tx.pure(bcs.u8().serialize(BadgeCategory.CONTRIBUTOR).toBytes()),
+          tx.pure(
+            bcs
+              .u8()
+              .serialize(ContributorBadgeType.SUBMISSION_APPROVED)
+              .toBytes(),
+          ),
+          tx.pure(bcs.string().serialize('').toBytes()),
+          tx.pure(bcs.u8().serialize(0).toBytes()),
+          tx.pure(bcs.vector(bcs.u8()).serialize([]).toBytes()),
+        ],
+      });
+    }
 
     const result = await this.gas.executeAsAdmin(tx);
     const txDigest = result.Transaction!.digest;
