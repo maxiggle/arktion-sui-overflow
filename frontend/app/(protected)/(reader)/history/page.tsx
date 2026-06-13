@@ -153,15 +153,10 @@ export default function HistoryPage() {
     fetchRecords();
   }, [fetchRecords]);
 
-  // Sort all records by lastReadAt descending
+  // Backend already orders by lastReadAt desc; just strip plan-to-read entries
+  // which have never been actively read and have no meaningful "last read" time.
   const sorted = useMemo(
-    () =>
-      [...records]
-        .filter((r) => r.status !== ReadingStatus.PLAN_TO_READ)
-        .sort(
-          (a, b) =>
-            new Date(b.lastReadAt).getTime() - new Date(a.lastReadAt).getTime()
-        ),
+    () => records.filter((r) => r.status !== ReadingStatus.PLAN_TO_READ),
     [records]
   );
 
