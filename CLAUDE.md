@@ -84,6 +84,23 @@ components/    Presentational UI, calls stores or receives props
 app/           Next.js pages — compose stores + components only
 ```
 
+## Git workflow
+
+```
+main          → stable, production-ready only
+development   → integration branch; all features merge here first
+feature/*     → one branch per major feature
+fix/*         → one branch per bug fix
+```
+
+- Every major feature or fix gets its own branch cut from `development`.
+- Branch naming: `feature/<short-description>` or `fix/<short-description>`.
+- Merge feature branches into `development` first via PR/merge.
+- `development` → `main` only when the build is stable and tested.
+- Never commit directly to `main` or `development`.
+
+---
+
 ## Key conventions
 - `reset()` must exist on every Zustand store and be called from `signOut()` in auth-context.
 - All dates from the API are ISO strings — format them in the component, not the store.
