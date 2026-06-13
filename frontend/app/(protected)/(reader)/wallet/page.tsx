@@ -247,7 +247,7 @@ function LedgerSection() {
                     </span>
                     {entry.suiTxDigest && (
                       <a
-                        href={`https://suiexplorer.com/txblock/${entry.suiTxDigest}?network=testnet`}
+                        href={`https://suiscan.xyz/testnet/tx/${entry.suiTxDigest}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground/50 hover:text-primary transition-colors opacity-0 group-hover:opacity-100"

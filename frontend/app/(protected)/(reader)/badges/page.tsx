@@ -131,7 +131,7 @@ function BadgeCard({ badge }: { badge: BadgeDto }) {
 
         {badge.suiObjectId && (
           <a
-            href={`https://suiexplorer.com/object/${badge.suiObjectId}?network=testnet`}
+            href={`https://suiscan.xyz/testnet/object/${badge.suiObjectId}`}
             target="_blank"
             rel="noopener noreferrer"
             className={`inline-flex items-center gap-1 text-[11px] ${style.text} hover:underline`}
