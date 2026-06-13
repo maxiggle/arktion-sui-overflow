@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import {
   getReadingRecords,
+  getReadingRecord,
   upsertReadingRecord,
   deleteReadingRecord,
 } from "@/lib/api/reading";
@@ -18,6 +19,8 @@ interface ReadingState {
   error: string | null;
 
   fetchRecords: (status?: ReadingStatus) => Promise<void>;
+  /** Fetches a single record by seriesId and merges it into records[]. */
+  fetchRecord: (seriesId: string) => Promise<void>;
   upsert: (dto: UpsertReadingRecordDto) => Promise<ReadingRecordDto>;
   remove: (seriesId: string) => Promise<void>;
   reset: () => void;
@@ -35,6 +38,22 @@ export const useReadingStore = create<ReadingState>((set, get) => ({
       set({ records, isLoading: false });
     } catch (err) {
       set({ error: getErrorMessage(err), isLoading: false });
+    }
+  },
+
+  fetchRecord: async (seriesId) => {
+    try {
+      const record = await getReadingRecord(seriesId);
+      set((state) => {
+        const idx = state.records.findIndex((r) => r.seriesId === seriesId);
+        const next =
+          idx >= 0
+            ? state.records.map((r, i) => (i === idx ? record : r))
+            : [record, ...state.records];
+        return { records: next };
+      });
+    } catch {
+      // 404 means no record exists for this series — not an error.
     }
   },
 
