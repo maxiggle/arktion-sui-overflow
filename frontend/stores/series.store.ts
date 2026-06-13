@@ -29,9 +29,12 @@ interface SeriesState {
   pagesLoading: boolean;
   pagesError: string | null;
 
+  byId: Record<string, SeriesDto>;
+
   fetchSeries: (query?: SeriesQuery) => Promise<void>;
   setQuery: (patch: Partial<SeriesQuery>) => void;
   fetchSeriesById: (id: string) => Promise<void>;
+  fetchSeriesForIds: (ids: string[]) => Promise<void>;
   fetchChapters: (seriesId: string, language?: string) => Promise<void>;
   fetchPages: (chapterId: string, dataSaver?: boolean) => Promise<void>;
   reset: () => void;
@@ -53,6 +56,8 @@ export const useSeriesStore = create<SeriesState>((set, get) => ({
   pages: [],
   pagesLoading: false,
   pagesError: null,
+
+  byId: {},
 
   fetchSeries: async (query) => {
     const merged = { ...get().query, ...query };
@@ -78,10 +83,27 @@ export const useSeriesStore = create<SeriesState>((set, get) => ({
     });
     try {
       const current = await getSeriesById(id);
-      set({ current, detailLoading: false });
+      set((state) => ({
+        current,
+        detailLoading: false,
+        byId: { ...state.byId, [id]: current },
+      }));
     } catch (err) {
       set({ detailError: getErrorMessage(err), detailLoading: false });
     }
+  },
+
+  fetchSeriesForIds: async (ids) => {
+    const missing = ids.filter((id) => !get().byId[id]);
+    if (missing.length === 0) return;
+    await Promise.all(
+      missing.map(async (id) => {
+        try {
+          const series = await getSeriesById(id);
+          set((state) => ({ byId: { ...state.byId, [id]: series } }));
+        } catch {}
+      }),
+    );
   },
 
   fetchChapters: async (seriesId, language = "en") => {
@@ -114,5 +136,6 @@ export const useSeriesStore = create<SeriesState>((set, get) => ({
       pages: [],
       pagesLoading: false,
       pagesError: null,
+      byId: {},
     }),
 }));
