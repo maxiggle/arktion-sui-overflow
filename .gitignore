@@ -22,3 +22,6 @@ build/
 /generated/prisma
 
 Arktion_Hackathon_Brief.pdf
+
+# Local development instructions
+CLAUDE.md
