@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { LandingNavCta } from "@/components/site/auth-nav-actions";
 
 const NAV_LINKS = [
   { label: "problem",     href: "#problem" },
@@ -53,13 +54,8 @@ export function LandingNav() {
         ))}
       </div>
 
-      {/* Right CTA */}
-      <a
-        href="/sign-in"
-        className="bg-white text-black text-sm font-normal rounded-full px-6 py-3 hover:bg-neutral-200 transition-colors"
-      >
-        start reading
-      </a>
+      {/* Right CTA — auth-aware */}
+      <LandingNavCta />
     </nav>
   );
 }
