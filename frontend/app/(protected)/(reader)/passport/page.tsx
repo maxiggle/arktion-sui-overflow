@@ -115,8 +115,8 @@ function SnapshotSection({
   onExport: () => void;
 }) {
   // Prefer freshly exported snapshot, fall back to last stored on passport
-  const blobId = latestSnapshot?.blobId ?? passport.walrusSnapshotBlobId;
-  const walrusUrl = latestSnapshot?.walrusUrl ?? passport.walrusSnapshotUrl;
+  const blobId = latestSnapshot?.blobId ?? passport.identityBlobId;
+  const walrusUrl = latestSnapshot?.walrusUrl ?? passport.identityBlobUrl;
   const snapshotAt = latestSnapshot?.snapshotAt ?? null;
   const recordCount = latestSnapshot?.recordCount ?? null;
   const onChain = latestSnapshot?.onChainAnchored ?? false;
@@ -279,7 +279,7 @@ export default function PassportPage() {
   const { pct, earnedInLevel, levelRange, isMaxLevel } =
     levelProgress(passport);
 
-  const suiExplorerUrl = `https://suiexplorer.com/object/${passport.suiObjectId}?network=testnet`;
+  const objectId = passport.objectId;
 
   return (
     <div className="min-h-screen bg-background px-6 py-10 lg:px-10">
@@ -355,23 +355,28 @@ export default function PassportPage() {
               <p className="text-[10px] text-muted-foreground tracking-widest uppercase mb-0.5">
                 Sui object
               </p>
-              <p className="text-xs font-mono text-foreground/80 truncate">
-                {passport.suiObjectId.slice(0, 10)}…
-                {passport.suiObjectId.slice(-6)}
-              </p>
+              {objectId ? (
+                <p className="text-xs font-mono text-foreground/80 truncate">
+                  {objectId.slice(0, 10)}…{objectId.slice(-6)}
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground/50">Not yet minted</p>
+              )}
             </div>
-            <div className="flex items-center gap-1 shrink-0">
-              <CopyButton text={passport.suiObjectId} />
-              <a
-                href={suiExplorerUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center h-6 w-6 rounded text-muted-foreground/60 hover:text-foreground hover:bg-accent transition-colors"
-                aria-label="View on Sui Explorer"
-              >
-                <ExternalLink className="h-3 w-3" />
-              </a>
-            </div>
+            {objectId && (
+              <div className="flex items-center gap-1 shrink-0">
+                <CopyButton text={objectId} />
+                <a
+                  href={passport.explorerUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center h-6 w-6 rounded text-muted-foreground/60 hover:text-foreground hover:bg-accent transition-colors"
+                  aria-label="View on Sui Explorer"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </div>
+            )}
           </div>
         </div>
 
@@ -414,14 +419,17 @@ export default function PassportPage() {
             onExport={exportSnapshot}
           />
 
-          {/* Member since */}
-          <p className="text-xs text-muted-foreground/60">
-            Member since{" "}
-            {new Date(passport.createdAt).toLocaleDateString("en-US", {
-              month: "long",
-              year: "numeric",
-            })}
-          </p>
+          {/* Last synced */}
+          {passport.lastSyncedAt && (
+            <p className="text-xs text-muted-foreground/60">
+              Last synced{" "}
+              {new Date(passport.lastSyncedAt).toLocaleDateString("en-US", {
+                month: "long",
+                day: "numeric",
+                year: "numeric",
+              })}
+            </p>
+          )}
         </div>
       </div>
     </div>

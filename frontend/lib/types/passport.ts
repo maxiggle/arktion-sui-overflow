@@ -1,17 +1,17 @@
+/** Matches the backend PassportService.findByUserId response shape. */
 export interface PassportDto {
-  id: string;
-  userId: string;
-  suiObjectId: string;
+  objectId: string | null;
   level: number;
   totalInkEarned: string;
   chaptersRead: number;
   seriesCompleted: number;
   seriesTracked: number;
-  imageUrl: string;
-  walrusSnapshotBlobId: string | null;
-  walrusSnapshotUrl: string | null;
-  createdAt: string;
-  updatedAt: string;
+  identityBlobId: string | null;
+  identityBlobUrl: string | null;
+  lastSyncedAt: string | null;
+  explorerUrl: string;
+  walletAddress: string;
+  imageUrl: string | null;
 }
 
 export interface SnapshotResult {
