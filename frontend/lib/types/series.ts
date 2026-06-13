@@ -44,17 +44,18 @@ export interface SeriesQuery {
 
 export interface ChapterDto {
   id: string;
-  externalId: string;
+  seriesId: string;
   chapterNumber: number;
   title: string | null;
   language: string;
   pageCount: number;
+  isLicensed: boolean;
+  inkCost: number;
   publishedAt: string | null;
 }
 
+/** Matches the backend PageDto: { pageNumber, imageUrl } */
 export interface PageDto {
-  index: number;
-  url: string;
-  width?: number;
-  height?: number;
+  pageNumber: number;
+  imageUrl: string;
 }

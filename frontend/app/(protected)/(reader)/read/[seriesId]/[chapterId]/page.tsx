@@ -21,46 +21,42 @@ import type { PageDto, ChapterDto } from "@/lib/types/series";
 
 // ─── Page image ───────────────────────────────────────────────────────────────
 
-function MangaPage({ page, maxWidth }: { page: PageDto; maxWidth: number }) {
-  const [loaded, setLoaded] = useState(false);
+function MangaPage({
+  page,
+  maxWidth,
+  isPriority,
+}: {
+  page: PageDto;
+  maxWidth: number;
+  isPriority: boolean;
+}) {
   const [errored, setErrored] = useState(false);
 
-  const hasExactDimensions = !!page.width && !!page.height;
-  const aspectRatio = hasExactDimensions ? page.width! / page.height! : 0.7;
-  const containerHeight = Math.round(maxWidth / aspectRatio);
+  if (!page.imageUrl) return null;
 
   if (errored) {
     return (
-      <div
-        className="w-full flex items-center justify-center bg-muted/30 border border-border/40"
-        style={{ height: containerHeight }}
-      >
+      <div className="w-full flex items-center justify-center bg-muted/30 border-y border-border/20 py-16">
         <div className="flex flex-col items-center gap-2 text-muted-foreground/60">
           <AlertCircle className="h-6 w-6" strokeWidth={1.5} />
-          <span className="text-xs">Page {page.index + 1} failed to load</span>
+          <span className="text-xs">Page {page.pageNumber} failed to load</span>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="relative w-full" style={{ aspectRatio }}>
-      {!loaded && (
-        <div className="absolute inset-0 flex items-center justify-center bg-muted/20">
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground/40" />
-        </div>
-      )}
-      <Image
-        src={page.url}
-        alt={`Page ${page.index + 1}`}
-        fill
-        className={`object-contain transition-opacity duration-200 ${loaded ? "opacity-100" : "opacity-0"}`}
-        sizes={`${maxWidth}px`}
-        onLoad={() => setLoaded(true)}
-        onError={() => setErrored(true)}
-        priority={page.index < 3}
-      />
-    </div>
+    <Image
+      src={page.imageUrl}
+      alt={`Page ${page.pageNumber}`}
+      width={maxWidth}
+      height={Math.round(maxWidth * 1.42)}
+      className="w-full h-auto block"
+      sizes={`${maxWidth}px`}
+      onError={() => setErrored(true)}
+      priority={isPriority}
+      unoptimized
+    />
   );
 }
 
@@ -321,9 +317,10 @@ export default function ChapterReaderPage() {
           >
             {pages.map((page) => (
               <MangaPage
-                key={page.index}
+                key={page.pageNumber}
                 page={page}
                 maxWidth={maxContentWidth}
+                isPriority={page.pageNumber <= 3}
               />
             ))}
           </div>
