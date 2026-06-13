@@ -51,8 +51,9 @@ export const useJournalStore = create<JournalState>((set) => ({
 
   update: async (entryId, dto) => {
     const updated = await updateJournalEntry(entryId, dto);
+    // Match on entryId (the API key), not id (the DB primary key)
     set((state) => ({
-      entries: state.entries.map((e) => (e.id === entryId ? updated : e)),
+      entries: state.entries.map((e) => (e.entryId === entryId ? updated : e)),
     }));
     return updated;
   },
@@ -60,7 +61,7 @@ export const useJournalStore = create<JournalState>((set) => ({
   remove: async (entryId) => {
     await deleteJournalEntry(entryId);
     set((state) => ({
-      entries: state.entries.filter((e) => e.id !== entryId),
+      entries: state.entries.filter((e) => e.entryId !== entryId),
     }));
   },
 
