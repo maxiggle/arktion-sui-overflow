@@ -12,6 +12,12 @@ const nextConfig: NextConfig = {
         hostname: "uploads.mangadex.org",
         pathname: "/covers/**",
       },
+      {
+        // MangaDex chapter page CDN
+        protocol: "https",
+        hostname: "*.mangadex.network",
+        pathname: "/**",
+      },
     ],
   },
 };

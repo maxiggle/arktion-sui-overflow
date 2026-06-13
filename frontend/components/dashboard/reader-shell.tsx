@@ -42,6 +42,11 @@ export function ReaderShell({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  // Chapter reader gets a clean full-screen canvas — no sidebar, no topbar.
+  if (pathname.startsWith("/read/")) {
+    return <>{children}</>;
+  }
+
   const isActive = (href: string) =>
     href === "/dashboard"
       ? pathname === "/dashboard"
