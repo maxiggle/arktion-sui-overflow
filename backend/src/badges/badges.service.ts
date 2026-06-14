@@ -1,6 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Transaction } from '@mysten/sui/transactions';
-import { bcs } from '@mysten/sui/bcs';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { SuiService } from '../sui/sui.service';
@@ -149,12 +148,12 @@ export class BadgesService {
         tx.object(this.sui.adminCapId),
         tx.object(this.sui.badgeRegistryId),
         tx.pure.address(walletAddress),
-        tx.pure(bcs.u8().serialize(category).toBytes()),
-        tx.pure(bcs.u8().serialize(badgeType).toBytes()),
-        tx.pure(bcs.string().serialize(seriesKey).toBytes()),
-        tx.pure(bcs.u8().serialize(tier).toBytes()),
+        tx.pure.u8(category),
+        tx.pure.u8(badgeType),
+        tx.pure.string(seriesKey),
+        tx.pure.u8(tier),
         // Phase 1: empty bytes. Batch 4 uploads badge art to Walrus first.
-        tx.pure(bcs.vector(bcs.u8()).serialize([]).toBytes()),
+        tx.pure.vector('u8', []),
       ],
     });
 
