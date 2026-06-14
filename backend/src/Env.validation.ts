@@ -103,6 +103,10 @@ export class EnvVariables {
   @Min(1)
   @IsOptional()
   WALRUS_DEFAULT_EPOCHS: number = 5;
+
+  @IsString()
+  @IsNotEmpty()
+  SUI_USDC_COIN_TYPE!: string;
 }
 
 /**

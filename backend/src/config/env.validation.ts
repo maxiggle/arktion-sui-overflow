@@ -86,6 +86,14 @@ class EnvironmentVariables {
   @IsString()
   SUI_BADGE_REGISTRY_ID!: string;
 
+  /**
+   * Full Sui coin type for USDC, e.g.:
+   * 0x26b3bc67befc214058ca78ea9a2690298d731a2d4309485ec3d40198063aba4::usdc::USDC
+   * Differs between testnet and mainnet.
+   */
+  @IsString()
+  SUI_USDC_COIN_TYPE!: string;
+
   @IsInt()
   @IsOptional()
   GAS_TREASURY_MIN_BALANCE: number = 10_000_000_000; // 10 SUI in MIST
