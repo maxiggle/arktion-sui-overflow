@@ -1,17 +1,24 @@
 /**
  * Auth helpers: localStorage wrappers and the Google OAuth redirect URL builder.
  *
- * Auth flow used here:
- *   1.  Frontend redirects user to Google OAuth with response_type=id_token
+ * Full zkLogin flow:
+ *   1.  buildGoogleOAuthUrl() — fetch current epoch, generate ephemeral Ed25519
+ *       keypair, compute nonce from keypair + maxEpoch + randomness, persist
+ *       ephemeral state in sessionStorage, return Google OAuth URL.
  *   2.  Google redirects back to /auth/callback#id_token=<JWT>
- *   3.  Callback page reads the hash, POSTs { jwt } to POST /auth/zklogin/complete
- *   4.  Backend verifies the JWT, derives the Sui address, bootstraps on-chain
- *       identity on first login, and returns { sessionToken, isNewUser, user }
- *   5.  Frontend stores sessionToken in localStorage, redirects based on isNewUser
+ *   3.  Callback page: POST { jwt } to /auth/zklogin/salt → get user salt.
+ *   4.  Callback page: POST to Mysten prover with jwt + ephemeral pubkey + salt
+ *       → get ZK proof; store proof + salt + sub + aud in sessionStorage.
+ *   5.  Callback page: POST { jwt } to /auth/zklogin/complete → session token.
+ *   6.  For on-chain ops (USDC tips): backend builds PTB bytes, frontend signs
+ *       with signWithZkLogin() from lib/zklogin.ts, backend co-signs as gas
+ *       sponsor and submits.
  */
 
+import { apiClient } from "@/lib/api/client";
+import { initEphemeralKeypair } from "@/lib/zklogin";
+
 export const SESSION_KEY = "arktion_session";
-export const NONCE_KEY = "arktion_oauth_nonce";
 
 export function getStoredToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -27,22 +34,23 @@ export function clearStoredAuth(): void {
 }
 
 /**
- * Build the Google OAuth authorization URL and store the nonce in sessionStorage
- * so the callback page can verify it (defence against replay attacks).
+ * Build the Google OAuth URL for zkLogin.
  *
- * Prerequisites (Google Cloud Console):
- *   - OAuth 2.0 Client ID → Web application
- *   - Authorised JavaScript origins: http://localhost:3000 (dev)
- *   - Authorised redirect URIs: http://localhost:3000/auth/callback (dev)
- *
- * Frontend env var: NEXT_PUBLIC_GOOGLE_CLIENT_ID
+ * Fetches the current Sui epoch from the backend, generates an ephemeral
+ * Ed25519 keypair, and derives the nonce from the keypair + maxEpoch so
+ * Google embeds it in the returned id_token. The ephemeral state (keypair
+ * secret + maxEpoch + randomness) is persisted in sessionStorage so the
+ * callback page can read it after the redirect.
  */
-export function buildGoogleOAuthUrl(): string {
+export async function buildGoogleOAuthUrl(): Promise<string> {
   const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
   if (!clientId) throw new Error("NEXT_PUBLIC_GOOGLE_CLIENT_ID is not set");
 
-  const nonce = crypto.randomUUID();
-  sessionStorage.setItem(NONCE_KEY, nonce);
+  const { data } = await apiClient.get<{ epoch: number; maxEpoch: number }>(
+    "/auth/epoch",
+  );
+
+  const { nonce } = initEphemeralKeypair(data.maxEpoch);
 
   const redirectUri = `${window.location.origin}/auth/callback`;
 
@@ -55,22 +63,4 @@ export function buildGoogleOAuthUrl(): string {
   });
 
   return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
-}
-
-/**
- * Extract the id_token from the URL fragment after Google redirects back.
- * Returns null if the fragment is missing or malformed.
- */
-export function extractIdTokenFromHash(hash: string): string | null {
-  // hash looks like "#id_token=JWT&token_type=Bearer&..."
-  const params = new URLSearchParams(hash.replace(/^#/, ""));
-  return params.get("id_token");
-}
-
-/**
- * Extract an OAuth error message from the URL fragment, if present.
- */
-export function extractOAuthError(hash: string): string | null {
-  const params = new URLSearchParams(hash.replace(/^#/, ""));
-  return params.get("error_description") ?? params.get("error");
 }

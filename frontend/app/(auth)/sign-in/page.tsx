@@ -61,6 +61,7 @@ export default function SignInPage() {
   const params = useSearchParams();
   const { isAuthenticated, isLoading } = useAuth();
   const [error, setError] = useState<string | null>(null);
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   // Already signed in → go to dashboard
   useEffect(() => {
@@ -77,11 +78,15 @@ export default function SignInPage() {
     else if (err) setError(decodeURIComponent(err));
   }, [params]);
 
-  function handleGoogleSignIn() {
+  async function handleGoogleSignIn() {
+    setIsRedirecting(true);
+    setError(null);
     try {
-      window.location.href = buildGoogleOAuthUrl();
+      const url = await buildGoogleOAuthUrl();
+      window.location.href = url;
     } catch {
-      setError("google client id is not configured");
+      setError("couldn't start sign in — please try again");
+      setIsRedirecting(false);
     }
   }
 
@@ -118,10 +123,15 @@ export default function SignInPage() {
         {/* Google button */}
         <button
           onClick={handleGoogleSignIn}
-          className="w-full flex items-center justify-center gap-3 bg-white text-black text-sm font-medium rounded-full px-6 py-[14px] hover:bg-neutral-100 transition-colors"
+          disabled={isRedirecting}
+          className="w-full flex items-center justify-center gap-3 bg-white text-black text-sm font-medium rounded-full px-6 py-[14px] hover:bg-neutral-100 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          <GoogleIcon />
-          continue with google
+          {isRedirecting ? (
+            <span className="h-4 w-4 rounded-full border-2 border-black/20 border-t-black animate-spin" />
+          ) : (
+            <GoogleIcon />
+          )}
+          {isRedirecting ? "preparing…" : "continue with google"}
         </button>
 
         {/* Guest bypass */}
