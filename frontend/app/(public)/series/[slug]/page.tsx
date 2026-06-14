@@ -12,6 +12,7 @@ import {
   Loader2,
   Plus,
   Check,
+  Heart,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -331,6 +332,13 @@ export default function SeriesDetailPage() {
                 record={record}
                 firstChapterNumber={firstChapter?.chapterNumber ?? 1}
               />
+
+              <Button asChild variant="outline" size="lg">
+                <Link href={`/tip/${seriesId}`}>
+                  <Heart className="h-4 w-4" />
+                  Tip creator
+                </Link>
+              </Button>
             </div>
           )}
         </div>

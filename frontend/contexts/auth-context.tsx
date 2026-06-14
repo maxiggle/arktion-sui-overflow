@@ -11,6 +11,7 @@ import React, {
 import { apiClient as api } from "@/lib/api/client";
 import type { AuthResult, AuthUser } from "@/lib/types/auth";
 import { clearStoredAuth, getStoredToken, setStoredToken } from "@/lib/auth";
+import { clearZkState } from "@/lib/zklogin";
 import { useInkStore } from "@/stores/ink.store";
 import { useReadingStore } from "@/stores/reading.store";
 import { usePassportStore } from "@/stores/passport.store";
@@ -102,6 +103,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Backend might be unreachable — clear locally regardless.
     }
     clearStoredAuth();
+    clearZkState();
     setToken(null);
     setUser(null);
     // Flush all Zustand stores so stale data never leaks to the next session

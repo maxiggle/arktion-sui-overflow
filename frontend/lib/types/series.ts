@@ -25,6 +25,7 @@ export interface SeriesDto {
   description: string | null;
   status: string;
   createdAt: string;
+  creatorId: string | null;
 }
 
 export interface SeriesPage {

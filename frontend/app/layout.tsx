@@ -49,7 +49,7 @@ export default function RootLayout({
       className={`${readexPro.variable} ${spaceGrotesk.variable} ${outfit.variable} ${spaceMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col font-body bg-background text-foreground">
+      <body className="min-h-full flex flex-col font-body bg-background text-foreground" suppressHydrationWarning>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
           <AuthProvider>{children}</AuthProvider>
         </ThemeProvider>

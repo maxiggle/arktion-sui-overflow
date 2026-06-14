@@ -21,6 +21,7 @@ export interface SeriesDto {
   description: string | null;
   status: string;
   createdAt: Date;
+  creatorId: string | null;
 }
 
 export interface SeriesPage {
@@ -74,6 +75,7 @@ export class SeriesService {
           description: true,
           status: true,
           createdAt: true,
+          creatorId: true,
         },
       }),
       this.prisma.series.count({ where }),
@@ -96,6 +98,7 @@ export class SeriesService {
         description: true,
         status: true,
         createdAt: true,
+        creatorId: true,
       },
     });
 
@@ -117,6 +120,7 @@ export class SeriesService {
         description: true,
         status: true,
         createdAt: true,
+        creatorId: true,
       },
     });
 
