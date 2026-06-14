@@ -35,6 +35,10 @@ model User {
   badgesEarned      BadgeEarned[]
   sessions          Session[]
   earningRecords    EarningRecord[]
+  createdSeries     Series[]         @relation("CreatorSeries")
+  tipsSent          TipTransaction[] @relation("TipSender")
+  tipsReceived      TipTransaction[] @relation("TipReceiver")
+  usdcBalance       UserUsdcBalance?
 
   @@unique([oauthIss, oauthSub])
   @@index([walletAddress])
@@ -89,16 +93,22 @@ model Series {
   metadataBlobId  String?   @map("metadata_blob_id")
   /// Last time the chapter list was synced from the external source (MangaDex).
   chaptersSyncedAt DateTime? @map("chapters_synced_at")
+  /// Platform creator who owns this series and receives USDC tips.
+  /// Null for externally sourced series that have no registered creator on Arktion.
+  creatorId       String?   @map("creator_id")
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
   deletedAt       DateTime? @map("deleted_at")
 
+  creator         User?           @relation("CreatorSeries", fields: [creatorId], references: [id])
   readingRecords  ReadingRecord[]
   badgesEarned    BadgeEarned[]
   chapters        Chapter[]
+  tipTransactions TipTransaction[]
 
   @@index([externalId])
   @@index([title])
+  @@index([creatorId])
   @@map("series")
 }
 
@@ -279,7 +289,46 @@ model IdempotencyKey {
   @@map("idempotency_keys")
 }
 
+/// USDC tip from a reader to a series creator.
+/// Amounts are in micro-USDC (6 decimal places). 1 USDC = 1_000_000.
+/// status: 0 = pending (bytes sent to frontend), 1 = confirmed on-chain, 2 = failed.
+model TipTransaction {
+  id             String   @id @default(uuid())
+  senderId       String   @map("sender_id")
+  receiverId     String   @map("receiver_id")
+  seriesId       String   @map("series_id")
+  /// Amount in micro-USDC (6 decimal places).
+  amountUsdc     BigInt   @map("amount_usdc")
+  suiTxDigest    String?  @unique @map("sui_tx_digest")
+  status         Int      @default(0)
+  idempotencyKey String   @unique @map("idempotency_key")
+  createdAt      DateTime @default(now()) @map("created_at")
+  confirmedAt    DateTime? @map("confirmed_at")
 
+  sender         User     @relation("TipSender", fields: [senderId], references: [id])
+  receiver       User     @relation("TipReceiver", fields: [receiverId], references: [id])
+  series         Series   @relation(fields: [seriesId], references: [id])
+
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([seriesId])
+  @@index([status])
+  @@map("tip_transactions")
+}
+
+/// Postgres mirror of a user's USDC coin balance on Sui.
+/// Updated after each confirmed tip send or receive.
+/// For fresh on-chain data query the user's USDC coin objects directly.
+model UserUsdcBalance {
+  userId        String   @id @map("user_id")
+  /// Balance in micro-USDC (6 decimal places).
+  balance       BigInt   @default(0)
+  lastSyncedAt  DateTime @default(now()) @map("last_synced_at")
+
+  user          User     @relation(fields: [userId], references: [id])
+
+  @@map("user_usdc_balances")
+}
 
 enum AdminRole {
   SUPER_ADMIN
