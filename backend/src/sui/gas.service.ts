@@ -86,6 +86,97 @@ export class GasService implements OnModuleInit {
     return result;
   }
 
+  /**
+   * Build a transaction that the USER must sign (non-custodial flow).
+   *
+   * Used for USDC tips: the user's zkLogin wallet is the sender and signs
+   * the actual coin transfer. The gas-sponsor keypair covers gas so the user
+   * needs no SUI balance.
+   *
+   * Pattern per @mysten/sui/docs/transaction-building/sponsored-transactions.md:
+   *   1. Build just the transaction kind (no gas, no sender).
+   *   2. Wrap in a sponsored transaction via Transaction.fromKind().
+   *   3. Set sender, gas owner, and explicit gas payment coins.
+   *   4. Build final bytes that both parties sign.
+   *
+   * Flow across the stack:
+   *   1. Backend calls this → returns base64 bytes to the frontend.
+   *   2. Frontend signs bytes with ephemeral key + ZK proof (signWithZkLogin).
+   *   3. Frontend POSTs { txBytes, userSignature } to the payment endpoint.
+   *   4. Backend calls submitSponsoredTx → gas sponsor co-signs and executes.
+   */
+  async buildSponsoredBytes(
+    tx: Transaction,
+    senderAddress: string,
+  ): Promise<{ txBytes: string }> {
+    await this.assertTreasuryHealthy();
+
+    // Step 1 — extract just the transaction kind, no gas or sender attached.
+    const kindBytes = await tx.build({
+      client: this.sui.client,
+      onlyTransactionKind: true,
+    });
+
+    // Step 2 — wrap in a full transaction with sponsor as gas payer.
+    const sponsored = Transaction.fromKind(kindBytes);
+    sponsored.setSender(senderAddress);
+    sponsored.setGasOwner(this.sui.gasAddress);
+
+    // Step 3 — fetch gas coins from the sponsor wallet and set them explicitly.
+    // listCoins returns the sponsor's SUI coins; we take the first (largest
+    // after automatic merge by the SDK).
+    // listCoins returns { objects: Coin[] } per SuiClientTypes.ListCoinsResponse
+    const { objects: gasCoins } = await this.sui.client.listCoins({
+      owner: this.sui.gasAddress,
+    });
+    if (gasCoins.length === 0) {
+      throw new ServiceUnavailableException('Gas treasury has no SUI coins');
+    }
+    sponsored.setGasPayment(
+      gasCoins.map((c) => ({
+        objectId: c.objectId,
+        version: c.version,
+        digest: c.digest,
+      })),
+    );
+
+    const bytes = await sponsored.build({ client: this.sui.client });
+    return { txBytes: Buffer.from(bytes).toString('base64') };
+  }
+
+  /**
+   * Co-sign with the gas keypair and execute a user-signed transaction.
+   *
+   * @param txBytes     Base64 transaction bytes (originally from buildSponsoredBytes).
+   * @param userSig     Serialized ZkLoginSignature from the frontend.
+   */
+  async submitSponsoredTx(
+    txBytes: string,
+    userSig: string,
+  ): Promise<AdminTxResult> {
+    await this.assertTreasuryHealthy();
+
+    const txBytesUint8 = Uint8Array.from(Buffer.from(txBytes, 'base64'));
+    const sponsorSig = await this.sui.gasKeypair.signTransaction(txBytesUint8);
+
+    const result = await this.sui.client.executeTransaction({
+      transaction: txBytesUint8,
+      signatures: [userSig, sponsorSig.signature],
+      include: { effects: true, events: true, objectTypes: true },
+    });
+
+    if (result.$kind === 'FailedTransaction') {
+      const status = result.FailedTransaction.status;
+      const errorMsg = !status.success ? status.error.message : 'unknown';
+      this.logger.error(`Sponsored transaction failed: ${errorMsg}`, {
+        digest: result.FailedTransaction.digest,
+      });
+      throw new Error(`On-chain execution failed: ${errorMsg}`);
+    }
+
+    return result;
+  }
+
   async getTreasuryBalance(): Promise<bigint> {
     const { balance } = await this.sui.client.getBalance({
       owner: this.sui.gasAddress,

@@ -28,6 +28,7 @@ export class SuiService implements OnModuleInit {
   readonly inkTreasuryCapId: string;
   readonly earningRegistryId: string;
   readonly badgeRegistryId: string;
+  readonly usdcCoinType: string;
 
   constructor(private readonly config: ConfigService) {
     this.client = new SuiGrpcClient({
@@ -44,6 +45,7 @@ export class SuiService implements OnModuleInit {
     this.inkTreasuryCapId = this.requireConfig('SUI_INK_TREASURY_CAP_ID');
     this.earningRegistryId = this.requireConfig('SUI_EARNING_REGISTRY_ID');
     this.badgeRegistryId = this.requireConfig('SUI_BADGE_REGISTRY_ID');
+    this.usdcCoinType = this.requireConfig('SUI_USDC_COIN_TYPE');
   }
 
   async onModuleInit(): Promise<void> {
