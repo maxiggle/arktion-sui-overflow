@@ -109,3 +109,6 @@ credentials/
 # test-scraper.ts
 # pipefi/
 # scraper-test-results.json
+/src/generated/prisma
+
+/generated/prisma

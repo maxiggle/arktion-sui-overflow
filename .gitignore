@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Environment files
+.env
+.env.*
+!.env.example
+publish.json
+
+# OS files
+.DS_Store
+.DS_Store?
+Thumbs.db
+
+# Build outputs
+dist/
+build/
+
+# Logs
+*.log
+
+/generated/prisma
+
+Arktion_Hackathon_Brief.pdf
+
+# Local development instructions
+CLAUDE.md

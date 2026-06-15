@@ -12,6 +12,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { MobileNavAuthActions } from "@/components/site/auth-nav-actions";
 
 export function PublicMobileNav() {
   return (
@@ -38,16 +39,7 @@ export function PublicMobileNav() {
             </SheetClose>
           ))}
           <div className="mt-auto grid gap-2 border-t border-border/60 pt-4">
-            <SheetClose asChild>
-              <Button asChild variant="outline">
-                <Link href="/sign-in">Sign in</Link>
-              </Button>
-            </SheetClose>
-            <SheetClose asChild>
-              <Button asChild>
-                <Link href="/sign-up">Get started</Link>
-              </Button>
-            </SheetClose>
+            <MobileNavAuthActions />
           </div>
         </div>
       </SheetContent>
