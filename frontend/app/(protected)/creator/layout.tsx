@@ -1,7 +1,7 @@
+import { CreatorShell } from "@/components/creator/creator-shell";
+
 export default function CreatorLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
-  return <section className="min-h-screen">{children}</section>;
+}: Readonly<{ children: React.ReactNode }>) {
+  return <CreatorShell>{children}</CreatorShell>;
 }
