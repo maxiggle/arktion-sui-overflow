@@ -17,6 +17,7 @@ import { useReadingStore } from "@/stores/reading.store";
 import { usePassportStore } from "@/stores/passport.store";
 import { useJournalStore } from "@/stores/journal.store";
 import { useBadgesStore } from "@/stores/badges.store";
+import { useCreatorStore } from "@/stores/creator.store";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -112,6 +113,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     usePassportStore.getState().reset();
     useJournalStore.getState().reset();
     useBadgesStore.getState().reset();
+    useCreatorStore.getState().reset();
   }, []);
 
   return (
