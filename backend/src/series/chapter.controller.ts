@@ -8,7 +8,11 @@ import {
   Query,
 } from '@nestjs/common';
 
-import { ChapterService, type ChapterDto, type PageDto } from './chapter.service';
+import {
+  ChapterService,
+  type ChapterDto,
+  type PageDto,
+} from './chapter.service';
 
 /**
  * Chapter and page delivery endpoints.

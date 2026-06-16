@@ -3,10 +3,12 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { z } from "zod";
+import { BookOpen, Plus, Loader2 } from "lucide-react";
 import { useCreatorStore } from "@/stores/creator.store";
 import { getErrorMessage } from "@/lib/api/client";
 import { FORMAT_LABELS, FormatType } from "@/lib/types/series";
 import { SeriesStatus } from "@/lib/types/creator";
+import { CoverImageUpload } from "@/components/creator/cover-image-upload";
 
 const schema = z.object({
   title: z.string().min(1, "title is required").max(255),
@@ -27,7 +29,15 @@ const FORMAT_OPTIONS = Object.entries(FORMAT_LABELS).map(([value, label]) => ({
 export default function EditSeriesPage() {
   const { seriesId } = useParams<{ seriesId: string }>();
   const router = useRouter();
-  const { series, loading, fetchOwnSeries, updateSeries } = useCreatorStore();
+  const {
+    series,
+    loading,
+    fetchOwnSeries,
+    updateSeries,
+    chaptersBySeriesId,
+    chaptersLoading,
+    fetchChapters,
+  } = useCreatorStore();
 
   const existing = series.find((s) => s.id === seriesId);
 
@@ -39,9 +49,18 @@ export default function EditSeriesPage() {
   const [serverError, setServerError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
+  const chapters = chaptersBySeriesId[seriesId] ?? null;
+  const chaptersAreLoading = chaptersLoading[seriesId] ?? false;
+
   useEffect(() => {
     if (series.length === 0) fetchOwnSeries();
   }, [series.length, fetchOwnSeries]);
+
+  useEffect(() => {
+    if (seriesId && !chapters && !chaptersAreLoading) {
+      fetchChapters(seriesId);
+    }
+  }, [seriesId, chapters, chaptersAreLoading, fetchChapters]);
 
   useEffect(() => {
     if (existing && !form) {
@@ -123,7 +142,7 @@ export default function EditSeriesPage() {
   if (!form) return null;
 
   return (
-    <div className="p-6 max-w-lg mx-auto space-y-6">
+    <div className="p-6 max-w-lg mx-auto space-y-8">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">edit series</h1>
@@ -213,19 +232,15 @@ export default function EditSeriesPage() {
           </select>
         </div>
 
-        {/* Cover URL */}
+        {/* Cover image */}
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-foreground" htmlFor="coverUrl">
-            cover image URL{" "}
+          <label className="text-xs font-medium text-foreground">
+            cover image{" "}
             <span className="text-muted-foreground font-normal">(optional)</span>
           </label>
-          <input
-            id="coverUrl"
-            type="url"
-            value={form.coverUrl}
-            onChange={(e) => set("coverUrl", e.target.value)}
-            placeholder="https://…"
-            className="w-full rounded-lg border border-border/60 bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+          <CoverImageUpload
+            value={form.coverUrl ?? ""}
+            onChange={(url) => set("coverUrl", url)}
           />
           {errors.coverUrl && (
             <p className="text-xs text-destructive">{errors.coverUrl}</p>
@@ -266,6 +281,75 @@ export default function EditSeriesPage() {
           {submitting ? "saving…" : "save changes"}
         </button>
       </form>
+
+      {/* Chapters section */}
+      <div className="space-y-3 border-t border-border/50 pt-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <BookOpen className="h-4 w-4 text-muted-foreground" />
+            <h2 className="text-sm font-medium">chapters</h2>
+            {chapters !== null && (
+              <span className="text-xs text-muted-foreground">
+                ({chapters.length})
+              </span>
+            )}
+          </div>
+          <button
+            onClick={() =>
+              router.push(`/creator/publish/${seriesId}/chapters/new`)
+            }
+            className="flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 transition-colors"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            new chapter
+          </button>
+        </div>
+
+        {chaptersAreLoading && (
+          <div className="flex items-center gap-2 py-4">
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">loading…</span>
+          </div>
+        )}
+
+        {!chaptersAreLoading && chapters !== null && chapters.length === 0 && (
+          <div className="rounded-xl border border-dashed border-border/60 py-8 text-center">
+            <p className="text-sm text-muted-foreground">no chapters yet</p>
+            <button
+              onClick={() =>
+                router.push(`/creator/publish/${seriesId}/chapters/new`)
+              }
+              className="mt-2 text-xs text-primary hover:underline"
+            >
+              publish your first chapter →
+            </button>
+          </div>
+        )}
+
+        {!chaptersAreLoading && chapters !== null && chapters.length > 0 && (
+          <div className="divide-y divide-border/40 rounded-xl border border-border/60 overflow-hidden">
+            {chapters.map((ch) => (
+              <div
+                key={ch.id}
+                className="flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium truncate">
+                    ch. {ch.chapterNumber}
+                    {ch.title ? ` — ${ch.title}` : ""}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {ch.pageCount} page{ch.pageCount !== 1 ? "s" : ""} ·{" "}
+                    {ch.publishedAt
+                      ? new Date(ch.publishedAt).toLocaleDateString()
+                      : "unpublished"}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -24,6 +24,8 @@ interface SeriesState {
   chapters: ChapterDto[];
   detailLoading: boolean;
   detailError: string | null;
+  chaptersLoading: boolean;
+  chaptersError: string | null;
 
   pages: PageDto[];
   pagesLoading: boolean;
@@ -38,6 +40,7 @@ interface SeriesState {
   fetchChapters: (seriesId: string, language?: string) => Promise<void>;
   fetchPages: (chapterId: string, dataSaver?: boolean) => Promise<void>;
   reset: () => void;
+
 }
 
 const INITIAL_QUERY: SeriesQuery = { page: 1, limit: 20 };
@@ -52,6 +55,8 @@ export const useSeriesStore = create<SeriesState>((set, get) => ({
   chapters: [],
   detailLoading: false,
   detailError: null,
+  chaptersLoading: false,
+  chaptersError: null,
 
   pages: [],
   pagesLoading: false,
@@ -107,10 +112,13 @@ export const useSeriesStore = create<SeriesState>((set, get) => ({
   },
 
   fetchChapters: async (seriesId, language = "en") => {
+    set({ chaptersLoading: true, chaptersError: null });
     try {
       const chapters = await getChapters(seriesId, language);
-      set({ chapters });
-    } catch {}
+      set({ chapters, chaptersLoading: false });
+    } catch (err) {
+      set({ chaptersError: getErrorMessage(err), chaptersLoading: false });
+    }
   },
 
   fetchPages: async (chapterId, dataSaver = false) => {
@@ -133,6 +141,8 @@ export const useSeriesStore = create<SeriesState>((set, get) => ({
       chapters: [],
       detailLoading: false,
       detailError: null,
+      chaptersLoading: false,
+      chaptersError: null,
       pages: [],
       pagesLoading: false,
       pagesError: null,

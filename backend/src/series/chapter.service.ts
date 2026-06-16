@@ -72,15 +72,18 @@ export class ChapterService {
     });
     if (!series) throw new NotFoundException('Series not found');
 
-    const isStale =
-      !series.chaptersSyncedAt ||
-      Date.now() - series.chaptersSyncedAt.getTime() > CHAPTER_SYNC_TTL_MS;
+    // Creator-uploaded series (creatorId set) never sync from MangaDex —
+    // their chapters live entirely in the pages table uploaded via Walrus.
+    const isCreatorSeries = series.creatorId !== null;
 
-    if (force || isStale) {
+    const isStale =
+      !isCreatorSeries &&
+      (!series.chaptersSyncedAt ||
+        Date.now() - series.chaptersSyncedAt.getTime() > CHAPTER_SYNC_TTL_MS);
+
+    if (!isCreatorSeries && (force || isStale)) {
       await this.syncFromMangaDex(series.id, series.externalId, language).catch(
         (err: Error) => {
-          // If the upstream sync fails, fall back to whatever we have cached.
-          // This keeps the demo working even if MangaDex is rate-limiting us.
           this.logger.warn(
             `MangaDex sync failed for series=${seriesId} (${series.externalId}): ${err.message}. Falling back to cache.`,
           );

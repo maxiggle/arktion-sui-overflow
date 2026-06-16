@@ -7,6 +7,7 @@ import { useCreatorStore } from "@/stores/creator.store";
 import { getErrorMessage } from "@/lib/api/client";
 import { FORMAT_LABELS, FormatType } from "@/lib/types/series";
 import { SeriesStatus } from "@/lib/types/creator";
+import { CoverImageUpload } from "@/components/creator/cover-image-upload";
 
 const schema = z.object({
   title: z.string().min(1, "title is required").max(255),
@@ -167,19 +168,15 @@ export default function NewSeriesPage() {
           </select>
         </div>
 
-        {/* Cover URL */}
+        {/* Cover image */}
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-foreground" htmlFor="coverUrl">
-            cover image URL{" "}
+          <label className="text-xs font-medium text-foreground">
+            cover image{" "}
             <span className="text-muted-foreground font-normal">(optional)</span>
           </label>
-          <input
-            id="coverUrl"
-            type="url"
-            value={form.coverUrl}
-            onChange={(e) => set("coverUrl", e.target.value)}
-            placeholder="https://…"
-            className="w-full rounded-lg border border-border/60 bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+          <CoverImageUpload
+            value={form.coverUrl ?? ""}
+            onChange={(url) => set("coverUrl", url)}
           />
           {errors.coverUrl && (
             <p className="text-xs text-destructive">{errors.coverUrl}</p>

@@ -4,7 +4,29 @@ import type {
   CreatorProfileDto,
   CreateSeriesPayload,
   UpdateSeriesPayload,
+  ApplyCreatorPayload,
+  CreatorApplicationStatusDto,
+  CreatorChapterDto,
+  CreateChapterPayload,
+  CreatorEarningsDto,
 } from "@/lib/types/creator";
+
+export async function getApplicationStatus(): Promise<CreatorApplicationStatusDto> {
+  const { data } = await apiClient.get<CreatorApplicationStatusDto>(
+    "/creator/application/status"
+  );
+  return data;
+}
+
+export async function applyAsCreator(
+  payload: ApplyCreatorPayload
+): Promise<CreatorApplicationStatusDto> {
+  const { data } = await apiClient.post<CreatorApplicationStatusDto>(
+    "/creator/apply",
+    payload
+  );
+  return data;
+}
 
 export async function getOwnSeries(): Promise<SeriesDto[]> {
   const { data } = await apiClient.get<SeriesDto[]>("/creator/series");
@@ -34,6 +56,44 @@ export async function getCreatorProfile(
 ): Promise<CreatorProfileDto> {
   const { data } = await apiClient.get<CreatorProfileDto>(
     `/creator/profile/${creatorId}`
+  );
+  return data;
+}
+
+export async function getCreatorSeriesChapters(
+  seriesId: string
+): Promise<CreatorChapterDto[]> {
+  const { data } = await apiClient.get<CreatorChapterDto[]>(
+    `/creator/series/${seriesId}/chapters`
+  );
+  return data;
+}
+
+export async function createCreatorChapter(
+  seriesId: string,
+  payload: CreateChapterPayload
+): Promise<CreatorChapterDto> {
+  const { data } = await apiClient.post<CreatorChapterDto>(
+    `/creator/series/${seriesId}/chapters`,
+    payload
+  );
+  return data;
+}
+
+export async function getCreatorEarnings(): Promise<CreatorEarningsDto> {
+  const { data } = await apiClient.get<CreatorEarningsDto>("/creator/earnings");
+  return data;
+}
+
+export async function uploadCreatorFile(
+  file: File
+): Promise<{ blobId: string; url: string }> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const { data } = await apiClient.post<{ blobId: string; url: string }>(
+    "/creator/upload",
+    formData,
+    { headers: { "Content-Type": "multipart/form-data" } }
   );
   return data;
 }
