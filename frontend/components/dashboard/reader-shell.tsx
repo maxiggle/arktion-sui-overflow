@@ -70,7 +70,7 @@ export function ReaderShell({ children }: { children: React.ReactNode }) {
       {/* ── Mobile overlay ── */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 z-30 bg-black/40 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-30 bg-black/60 lg:hidden"
           onClick={() => setMobileOpen(false)}
         />
       )}
@@ -251,7 +251,7 @@ export function ReaderShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* ── Mobile top bar ── */}
-      <div className="fixed top-0 left-0 right-0 z-20 flex h-12 items-center justify-between border-b border-border/60 bg-background/90 backdrop-blur px-4 lg:hidden">
+      <div className="fixed top-0 left-0 right-0 z-20 flex h-12 items-center justify-between border-b border-border/60 bg-background px-4 lg:hidden">
         <span className="text-sm font-semibold tracking-tight">arktion</span>
         <button
           onClick={() => setMobileOpen((o) => !o)}
