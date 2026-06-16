@@ -3,6 +3,7 @@ import { publicNavItems } from "@/lib/public-content";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { PublicMobileNav } from "@/components/site/public-mobile-nav";
+import { PublicHeaderActions } from "@/components/site/auth-nav-actions";
 
 export function PublicShell({ children }: { children: React.ReactNode }) {
   return (
@@ -33,17 +34,7 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
 
           <div className="flex items-center gap-2">
             <PublicMobileNav />
-            <Button
-              asChild
-              variant="outline"
-              size="sm"
-              className="hidden sm:inline-flex"
-            >
-              <Link href="/sign-in">Sign in</Link>
-            </Button>
-            <Button asChild size="sm">
-              <Link href="/sign-up">Get started</Link>
-            </Button>
+            <PublicHeaderActions />
           </div>
         </div>
       </header>

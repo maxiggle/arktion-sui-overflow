@@ -8,12 +8,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 
 @Module({
   controllers: [AuthController],
-  providers: [
-    AuthService,
-    ZkLoginService,
-    SessionService,
-    JwtAuthGuard, // re-exported so other modules can @UseGuards(JwtAuthGuard)
-  ],
-  exports: [SessionService, JwtAuthGuard],
+  providers: [AuthService, ZkLoginService, SessionService, JwtAuthGuard],
+  exports: [SessionService, ZkLoginService, JwtAuthGuard],
 })
 export class AuthModule {}

@@ -94,7 +94,7 @@ export class EnvVariables {
   GAS_TREASURY_MIN_BALANCE: number = 10_000_000_000; // 10 SUI in MIST
 
   @IsUrl({ require_tld: false })
-  WALRUS_PUBLISHER_URL!: string;
+  WALRUS_UPLOAD_RELAY_URL!: string;
 
   @IsUrl({ require_tld: false })
   WALRUS_AGGREGATOR_URL!: string;
@@ -103,6 +103,10 @@ export class EnvVariables {
   @Min(1)
   @IsOptional()
   WALRUS_DEFAULT_EPOCHS: number = 5;
+
+  @IsString()
+  @IsNotEmpty()
+  SUI_USDC_COIN_TYPE!: string;
 }
 
 /**

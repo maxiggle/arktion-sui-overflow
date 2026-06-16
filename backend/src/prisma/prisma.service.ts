@@ -17,10 +17,14 @@ export class PrismaService
   constructor() {
     const adapter = new PrismaPg({
       connectionString: process.env.DATABASE_URL,
+      // Prevent Railway proxy from silently dropping stale connections.
+      // connectionTimeoutMillis: fail fast so NestJS can return a 503 instead of hanging.
+      // idleTimeoutMillis: recycle idle connections before Railway's proxy closes them (~60s).
+      max: 5,
+      connectionTimeoutMillis: 10_000,
+      idleTimeoutMillis: 30_000,
     });
-    super({
-      adapter,
-    });
+    super({ adapter });
   }
 
   async onModuleInit(): Promise<void> {

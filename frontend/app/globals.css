@@ -127,6 +127,12 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+.hero-title {
+  letter-spacing: -0.04em;
+  line-height: 0.95;
+  font-family: var(--font-readex), system-ui, -apple-system, sans-serif;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

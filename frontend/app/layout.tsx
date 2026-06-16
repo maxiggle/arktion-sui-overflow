@@ -1,6 +1,15 @@
 import type { Metadata } from "next";
-import { Outfit, Space_Grotesk, Space_Mono } from "next/font/google";
+import { Outfit, Readex_Pro, Space_Grotesk, Space_Mono } from "next/font/google";
+import { ThemeProvider } from "next-themes";
+import { AuthProvider } from "@/contexts/auth-context";
 import "./globals.css";
+
+const readexPro = Readex_Pro({
+  variable: "--font-readex",
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+  display: "swap",
+});
 
 const spaceGrotesk = Space_Grotesk({
   variable: "--font-heading",
@@ -37,10 +46,13 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${spaceGrotesk.variable} ${outfit.variable} ${spaceMono.variable} h-full antialiased`}
+      className={`${readexPro.variable} ${spaceGrotesk.variable} ${outfit.variable} ${spaceMono.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col font-body bg-background text-foreground">
-        {children}
+      <body className="min-h-full flex flex-col font-body bg-background text-foreground" suppressHydrationWarning>
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+          <AuthProvider>{children}</AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

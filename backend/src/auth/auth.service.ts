@@ -107,8 +107,6 @@ export class AuthService {
     };
   }
 
-  // ─── Three-phase bootstrap ────────────────────────────────────────────────
-
   /**
    * Phase A: insert user row with bootstrapState='pending'.
    * Phase B: run the on-chain bootstrap PTB.
@@ -118,11 +116,13 @@ export class AuthService {
     jwtToken: string,
     claims: VerifiedGoogleClaims,
   ) {
-    const salt = this.zkLogin.generateSalt();
-    const walletAddress = this.zkLogin.deriveAddress(jwtToken, salt);
+    // Enoki owns the salt — we fetch the address from Enoki so it matches
+    // exactly what the ZK proof was generated for.
+    const { salt, address: walletAddress } =
+      await this.zkLogin.getEnokiAddress(jwtToken);
 
     this.logger.log(
-      `New user sign-in: sub=${claims.sub}, derived address=${walletAddress}`,
+      `New user sign-in: sub=${claims.sub}, enoki address=${walletAddress}`,
     );
 
     // Phase A — record intent before touching the chain. Unique constraint
@@ -147,12 +147,14 @@ export class AuthService {
 
     // Phase C — finalize. Wrap in a DB transaction so passport row + user
     // update are atomic.
-    return this.finalizeBootstrap(user.id, {
+    const finalized = await this.finalizeBootstrap(user.id, {
       passportObjectId: bootstrap.passportObjectId,
       libraryObjectId: bootstrap.libraryObjectId,
       journalObjectId: bootstrap.journalObjectId,
       digest: bootstrap.digest,
     });
+
+    return finalized;
   }
 
   /**
