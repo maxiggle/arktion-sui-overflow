@@ -22,7 +22,10 @@ async function bootstrap() {
   app.enableCors({
     origin:
       nodeEnv === 'production'
-        ? ['https://arktion.io', 'https://www.arktion.io']
+        ? config
+            .get<string>('CORS_ORIGIN', 'https://arktion.io')
+            .split(',')
+            .map((s) => s.trim())
         : true,
     credentials: true,
   });

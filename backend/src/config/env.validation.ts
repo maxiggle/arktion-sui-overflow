@@ -100,13 +100,22 @@ class EnvironmentVariables {
 
   @IsString()
   @IsOptional()
-  WALRUS_PUBLISHER_URL: string =
+  WALRUS_UPLOAD_RELAY_URL: string =
     'https://publisher.walrus-testnet.walrus.space';
 
   @IsString()
   @IsOptional()
   WALRUS_AGGREGATOR_URL: string =
     'https://aggregator.walrus-testnet.walrus.space';
+
+  /**
+   * Comma-separated list of allowed CORS origins in production.
+   * E.g. "https://arktion.up.railway.app,https://arktion.io"
+   * Defaults to arktion.io. Override when deploying to Railway or staging.
+   */
+  @IsString()
+  @IsOptional()
+  CORS_ORIGIN: string = 'https://arktion.io';
 
   // ─── Admin Auth ─────────────────────────────────────────────────────────────
 
