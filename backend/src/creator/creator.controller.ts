@@ -16,15 +16,12 @@ import type { SeriesDto } from '../series/series.service';
 import { CreatorService, CreatorProfileDto } from './creator.service';
 import { CreateSeriesDto } from './dto/create-series.dto';
 import { UpdateSeriesDto } from './dto/update-series.dto';
+import { ApplyCreatorDto } from './dto/apply-creator.dto';
 
 @Controller('creator')
 export class CreatorController {
   constructor(private readonly creatorService: CreatorService) {}
 
-  /**
-   * GET /api/v1/creator/series
-   * Returns all series owned by the authenticated creator.
-   */
   @UseGuards(JwtAuthGuard)
   @Get('series')
   async getOwnSeries(
@@ -33,10 +30,6 @@ export class CreatorController {
     return this.creatorService.getOwnSeries(user.id);
   }
 
-  /**
-   * POST /api/v1/creator/series
-   * Create a new series. The authenticated user becomes the creator.
-   */
   @UseGuards(JwtAuthGuard)
   @Post('series')
   async createSeries(
@@ -46,10 +39,6 @@ export class CreatorController {
     return this.creatorService.createSeries(user.id, dto);
   }
 
-  /**
-   * PATCH /api/v1/creator/series/:seriesId
-   * Update a series. Only the owning creator may call this.
-   */
   @UseGuards(JwtAuthGuard)
   @Patch('series/:seriesId')
   async updateSeries(
@@ -60,10 +49,46 @@ export class CreatorController {
     return this.creatorService.updateSeries(user.id, seriesId, dto);
   }
 
+<<<<<<< Updated upstream
+  /**
+   * POST /api/v1/creator/apply
+   * Submit a creator application for the authenticated user.
+   */
+=======
+  /** POST /api/v1/creator/apply */
+>>>>>>> Stashed changes
+  @UseGuards(JwtAuthGuard)
+  @Post('apply')
+  async applyAsCreator(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ApplyCreatorDto,
+  ): Promise<void> {
+    return this.creatorService.applyAsCreator(user.id, dto);
+  }
+
+<<<<<<< Updated upstream
+  /**
+   * GET /api/v1/creator/application/status
+   * Returns the authenticated user's creator application status.
+   */
+=======
+  /** GET /api/v1/creator/application/status */
+>>>>>>> Stashed changes
+  @UseGuards(JwtAuthGuard)
+  @Get('application/status')
+  async getApplicationStatus(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<{ status: 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED' }> {
+    return this.creatorService.getApplicationStatus(user.id);
+  }
+
+<<<<<<< Updated upstream
   /**
    * GET /api/v1/creator/profile/:creatorId
    * Public creator profile — no auth required.
    */
+=======
+>>>>>>> Stashed changes
   @Get('profile/:creatorId')
   async getPublicProfile(
     @Param('creatorId', ParseUUIDPipe) creatorId: string,
@@ -71,10 +96,6 @@ export class CreatorController {
     return this.creatorService.getPublicProfile(creatorId);
   }
 
-  /**
-   * GET /api/v1/creator/profile/:creatorId/series
-   * Public list of a creator's series — no auth required.
-   */
   @Get('profile/:creatorId/series')
   async getPublicSeries(
     @Param('creatorId', ParseUUIDPipe) creatorId: string,

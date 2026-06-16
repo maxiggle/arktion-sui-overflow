@@ -36,3 +36,19 @@ export interface UpdateSeriesPayload {
   coverUrl?: string;
   status?: SeriesStatus;
 }
+
+export enum Cadence {
+  WEEKLY = "weekly",
+  BI_WEEKLY = "bi-weekly",
+  MONTHLY = "monthly",
+  ONE_SHOT = "one-shot",
+}
+
+export interface ApplyCreatorPayload {
+  pitch: string;
+  cadence: Cadence;
+  tooling: string;
+  portfolioUrl?: string;
+}
+
+export type CreatorStatus = "NONE" | "PENDING" | "APPROVED" | "REJECTED";

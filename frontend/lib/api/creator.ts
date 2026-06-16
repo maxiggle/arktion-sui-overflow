@@ -4,6 +4,8 @@ import type {
   CreatorProfileDto,
   CreateSeriesPayload,
   UpdateSeriesPayload,
+  ApplyCreatorPayload,
+  CreatorStatus,
 } from "@/lib/types/creator";
 
 export async function getOwnSeries(): Promise<SeriesDto[]> {
@@ -43,6 +45,30 @@ export async function getCreatorPublicSeries(
 ): Promise<SeriesDto[]> {
   const { data } = await apiClient.get<SeriesDto[]>(
     `/creator/profile/${creatorId}/series`
+  );
+  return data;
+}
+
+export async function applyAsCreator(
+  payload: ApplyCreatorPayload
+): Promise<void> {
+  await apiClient.post("/creator/apply", payload);
+}
+
+export async function getApplicationStatus(): Promise<{ status: CreatorStatus }> {
+  const { data } = await apiClient.get<{ status: CreatorStatus }>(
+    "/creator/application/status"
+  );
+  return data;
+}
+
+export async function uploadCreatorFile(file: File): Promise<{ url: string }> {
+  const form = new FormData();
+  form.append("file", file);
+  const { data } = await apiClient.post<{ url: string }>(
+    "/creator/upload",
+    form,
+    { headers: { "Content-Type": "multipart/form-data" } }
   );
   return data;
 }
