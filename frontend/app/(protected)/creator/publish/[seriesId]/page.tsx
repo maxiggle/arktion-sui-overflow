@@ -14,7 +14,7 @@ const schema = z.object({
   sourceLanguage: z.string().min(1, "language is required").max(10),
   description: z.string().max(5000).optional(),
   coverUrl: z.string().url("must be a valid URL").optional().or(z.literal("")),
-  status: z.nativeEnum(SeriesStatus),
+  status: z.enum(Object.values(SeriesStatus) as [SeriesStatus, ...SeriesStatus[]]),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -31,6 +31,7 @@ export default function EditSeriesPage() {
 
   const existing = series.find((s) => s.id === seriesId);
 
+  const [trackedId, setTrackedId] = useState<string | null>(null);
   const [form, setForm] = useState<FormData | null>(null);
   const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>(
     {}
@@ -43,18 +44,19 @@ export default function EditSeriesPage() {
     if (series.length === 0) fetchOwnSeries();
   }, [series.length, fetchOwnSeries]);
 
-  useEffect(() => {
-    if (existing && !form) {
-      setForm({
-        title: existing.title,
-        formatType: existing.formatType,
-        sourceLanguage: existing.sourceLanguage,
-        description: existing.description ?? "",
-        coverUrl: existing.coverUrl ?? "",
-        status: (existing.status as SeriesStatus) ?? SeriesStatus.ONGOING,
-      });
-    }
-  }, [existing, form]);
+  // Derive form from existing during render — avoids setState-in-effect warning.
+  // React re-renders once synchronously when trackedId diverges from existing.id.
+  if (existing && existing.id !== trackedId) {
+    setTrackedId(existing.id);
+    setForm({
+      title: existing.title,
+      formatType: existing.formatType,
+      sourceLanguage: existing.sourceLanguage,
+      description: existing.description ?? "",
+      coverUrl: existing.coverUrl ?? "",
+      status: (existing.status as SeriesStatus) ?? SeriesStatus.ONGOING,
+    });
+  }
 
   const set = <K extends keyof FormData>(key: K, value: FormData[K]) => {
     setSaved(false);

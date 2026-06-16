@@ -2,6 +2,28 @@ import type { SeriesDto } from "./series";
 
 export type { SeriesDto };
 
+export type CreatorStatus = "NONE" | "PENDING" | "APPROVED" | "REJECTED";
+
+export const Cadence = {
+  WEEKLY: "weekly",
+  BI_WEEKLY: "bi-weekly",
+  MONTHLY: "monthly",
+  ONE_SHOT: "one-shot",
+} as const;
+export type Cadence = (typeof Cadence)[keyof typeof Cadence];
+
+export interface CreatorApplicationStatusDto {
+  status: CreatorStatus;
+  submittedAt: string | null;
+}
+
+export interface ApplyCreatorPayload {
+  pitch: string;
+  cadence: Cadence;
+  tooling: string;
+  portfolioUrl?: string;
+}
+
 export const SeriesStatus = {
   ONGOING: "ongoing",
   COMPLETED: "completed",
@@ -37,18 +59,31 @@ export interface UpdateSeriesPayload {
   status?: SeriesStatus;
 }
 
-export enum Cadence {
-  WEEKLY = "weekly",
-  BI_WEEKLY = "bi-weekly",
-  MONTHLY = "monthly",
-  ONE_SHOT = "one-shot",
+export interface CreatorChapterDto {
+  id: string;
+  seriesId: string;
+  chapterNumber: number;
+  title: string | null;
+  pageCount: number;
+  publishedAt: string | null;
+  createdAt: string;
 }
 
-export interface ApplyCreatorPayload {
-  pitch: string;
-  cadence: Cadence;
-  tooling: string;
-  portfolioUrl?: string;
+export interface CreateChapterPayload {
+  chapterNumber: number;
+  title?: string;
+  pages: string[];
 }
 
-export type CreatorStatus = "NONE" | "PENDING" | "APPROVED" | "REJECTED";
+export interface EarningsTipDto {
+  id: string;
+  amountUsdc: string;
+  seriesTitle: string;
+  senderDisplayName: string | null;
+  createdAt: string;
+}
+
+export interface CreatorEarningsDto {
+  totalUsdcReceived: string;
+  recentTips: EarningsTipDto[];
+}

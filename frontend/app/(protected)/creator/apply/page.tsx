@@ -12,7 +12,7 @@ const schema = z.object({
     .string()
     .min(80, "Give us at least a few sentences — what's the story?")
     .max(2000),
-  cadence: z.nativeEnum(Cadence, {
+  cadence: z.enum(Object.values(Cadence) as [Cadence, ...Cadence[]], {
     error: () => "Select a release schedule",
   }),
   tooling: z

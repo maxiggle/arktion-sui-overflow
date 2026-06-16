@@ -3,8 +3,9 @@ import {
   getOwnSeries,
   createSeries,
   updateSeries,
-  applyAsCreator as apiApplyAsCreator,
   getApplicationStatus,
+  applyAsCreator,
+  getCreatorSeriesChapters,
 } from "@/lib/api/creator";
 import { getErrorMessage } from "@/lib/api/client";
 import type { SeriesDto } from "@/lib/types/series";
@@ -12,28 +13,65 @@ import type {
   CreateSeriesPayload,
   UpdateSeriesPayload,
   ApplyCreatorPayload,
+  CreatorApplicationStatusDto,
   CreatorStatus,
+  CreatorChapterDto,
 } from "@/lib/types/creator";
 
 interface CreatorState {
+  creatorStatus: CreatorStatus;
+  applicationChecked: boolean;
+  applicationLoading: boolean;
+
   series: SeriesDto[];
   loading: boolean;
   error: string | null;
-  creatorStatus: CreatorStatus;
 
+  chaptersBySeriesId: Record<string, CreatorChapterDto[]>;
+  chaptersLoading: Record<string, boolean>;
+
+  checkApplicationStatus: () => Promise<void>;
+  applyAsCreator: (payload: ApplyCreatorPayload) => Promise<CreatorApplicationStatusDto>;
   fetchOwnSeries: () => Promise<void>;
   createSeries: (payload: CreateSeriesPayload) => Promise<SeriesDto>;
   updateSeries: (seriesId: string, payload: UpdateSeriesPayload) => Promise<SeriesDto>;
-  applyAsCreator: (payload: ApplyCreatorPayload) => Promise<void>;
-  checkApplicationStatus: () => Promise<void>;
+  fetchChapters: (seriesId: string) => Promise<void>;
+  addChapterToSeries: (chapter: CreatorChapterDto) => void;
   reset: () => void;
 }
 
-export const useCreatorStore = create<CreatorState>((set) => ({
+export const useCreatorStore = create<CreatorState>((set, get) => ({
+  creatorStatus: "NONE",
+  applicationChecked: false,
+  applicationLoading: false,
+
   series: [],
   loading: false,
   error: null,
-  creatorStatus: "NONE",
+
+  chaptersBySeriesId: {},
+  chaptersLoading: {},
+
+  checkApplicationStatus: async () => {
+    if (get().applicationChecked) return;
+    set({ applicationLoading: true });
+    try {
+      const result = await getApplicationStatus();
+      set({
+        creatorStatus: result.status,
+        applicationChecked: true,
+        applicationLoading: false,
+      });
+    } catch {
+      set({ applicationLoading: false });
+    }
+  },
+
+  applyAsCreator: async (payload) => {
+    const result = await applyAsCreator(payload);
+    set({ creatorStatus: result.status, applicationChecked: true });
+    return result;
+  },
 
   fetchOwnSeries: async () => {
     set({ loading: true, error: null });
@@ -59,16 +97,47 @@ export const useCreatorStore = create<CreatorState>((set) => ({
     return updated;
   },
 
-  applyAsCreator: async (payload) => {
-    await apiApplyAsCreator(payload);
-  },
-
-  checkApplicationStatus: async () => {
+  fetchChapters: async (seriesId) => {
+    set((state) => ({
+      chaptersLoading: { ...state.chaptersLoading, [seriesId]: true },
+    }));
     try {
-      const { status } = await getApplicationStatus();
-      set({ creatorStatus: status });
-    } catch {}
+      const chapters = await getCreatorSeriesChapters(seriesId);
+      set((state) => ({
+        chaptersBySeriesId: { ...state.chaptersBySeriesId, [seriesId]: chapters },
+        chaptersLoading: { ...state.chaptersLoading, [seriesId]: false },
+      }));
+    } catch {
+      set((state) => ({
+        chaptersBySeriesId: { ...state.chaptersBySeriesId, [seriesId]: [] },
+        chaptersLoading: { ...state.chaptersLoading, [seriesId]: false },
+      }));
+    }
   },
 
-  reset: () => set({ series: [], loading: false, error: null, creatorStatus: "NONE" }),
+  addChapterToSeries: (chapter) => {
+    set((state) => {
+      const existing = state.chaptersBySeriesId[chapter.seriesId] ?? [];
+      return {
+        chaptersBySeriesId: {
+          ...state.chaptersBySeriesId,
+          [chapter.seriesId]: [...existing, chapter].sort(
+            (a, b) => a.chapterNumber - b.chapterNumber
+          ),
+        },
+      };
+    });
+  },
+
+  reset: () =>
+    set({
+      creatorStatus: "NONE",
+      applicationChecked: false,
+      applicationLoading: false,
+      series: [],
+      loading: false,
+      error: null,
+      chaptersBySeriesId: {},
+      chaptersLoading: {},
+    }),
 }));

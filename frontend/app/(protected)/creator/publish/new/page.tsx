@@ -14,7 +14,7 @@ const schema = z.object({
   sourceLanguage: z.string().min(1, "language is required").max(10),
   description: z.string().max(5000).optional(),
   coverUrl: z.string().url("must be a valid URL").optional().or(z.literal("")),
-  status: z.nativeEnum(SeriesStatus),
+  status: z.enum(Object.values(SeriesStatus) as [SeriesStatus, ...SeriesStatus[]]),
 });
 
 type FormData = z.infer<typeof schema>;
