@@ -154,7 +154,7 @@ export class CreatorService {
     });
     if (!user) throw new NotFoundException('User not found');
     return {
-      status: user.creatorStatus as 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED',
+      status: user.creatorStatus,
     };
   }
 
@@ -191,54 +191,6 @@ export class CreatorService {
     if (!exists) throw new NotFoundException(`Creator ${creatorId} not found`);
 
     return this.getOwnSeries(creatorId);
-  }
-
-  async applyAsCreator(userId: string, dto: ApplyCreatorDto): Promise<void> {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { creatorStatus: true },
-    });
-    if (!user) throw new NotFoundException('User not found');
-    if (user.creatorStatus !== 'NONE') {
-      throw new BadRequestException(
-        'An application already exists for this account',
-      );
-    }
-
-    await this.prisma.$transaction([
-      this.prisma.creatorApplication.upsert({
-        where: { userId },
-        create: {
-          userId,
-          pitch: dto.pitch,
-          cadence: dto.cadence,
-          tooling: dto.tooling,
-          portfolioUrl: dto.portfolioUrl ?? null,
-        },
-        update: {
-          pitch: dto.pitch,
-          cadence: dto.cadence,
-          tooling: dto.tooling,
-          portfolioUrl: dto.portfolioUrl ?? null,
-          submittedAt: new Date(),
-        },
-      }),
-      this.prisma.user.update({
-        where: { id: userId },
-        data: { creatorStatus: 'PENDING' },
-      }),
-    ]);
-  }
-
-  async getApplicationStatus(
-    userId: string,
-  ): Promise<{ status: 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED' }> {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { creatorStatus: true },
-    });
-    if (!user) throw new NotFoundException('User not found');
-    return { status: user.creatorStatus as 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED' };
   }
 
   private async assertOwnership(userId: string, seriesId: string) {
