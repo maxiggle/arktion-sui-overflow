@@ -1,8 +1,6 @@
 "use client";
 
-export const dynamic = "force-dynamic";
-
-import React, { useEffect, useState } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { buildGoogleOAuthUrl } from "@/lib/auth";
@@ -58,7 +56,7 @@ const BENEFITS = [
   "tip creators directly in usdc",
 ] as const;
 
-export default function SignInPage() {
+function SignInContent() {
   const router = useRouter();
   const params = useSearchParams();
   const { isAuthenticated, isLoading } = useAuth();
@@ -163,5 +161,13 @@ export default function SignInPage() {
 
       </div>
     </section>
+  );
+}
+
+export default function SignInPage() {
+  return (
+    <Suspense fallback={null}>
+      <SignInContent />
+    </Suspense>
   );
 }
