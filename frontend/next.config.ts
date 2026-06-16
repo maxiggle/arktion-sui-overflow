@@ -7,16 +7,19 @@ const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
       {
-        // MangaDex cover art CDN
         protocol: "https",
         hostname: "uploads.mangadex.org",
         pathname: "/covers/**",
       },
       {
-        // MangaDex chapter page CDN
         protocol: "https",
         hostname: "*.mangadex.network",
         pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: "aggregator.walrus-testnet.walrus.space",
+        pathname: "/v1/**",
       },
     ],
   },
