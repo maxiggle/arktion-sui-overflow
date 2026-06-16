@@ -47,7 +47,6 @@ export type PublicMilestone = {
 
 export const publicNavItems: PublicNavItem[] = [
   { label: "Explore", href: "/explore" },
-  { label: "Series", href: "/series/emberfall" },
   { label: "Roadmap", href: "/roadmap" },
   { label: "About", href: "/about" },
 ];
