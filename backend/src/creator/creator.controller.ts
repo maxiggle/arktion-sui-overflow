@@ -49,14 +49,7 @@ export class CreatorController {
     return this.creatorService.updateSeries(user.id, seriesId, dto);
   }
 
-<<<<<<< Updated upstream
-  /**
-   * POST /api/v1/creator/apply
-   * Submit a creator application for the authenticated user.
-   */
-=======
   /** POST /api/v1/creator/apply */
->>>>>>> Stashed changes
   @UseGuards(JwtAuthGuard)
   @Post('apply')
   async applyAsCreator(
@@ -66,14 +59,7 @@ export class CreatorController {
     return this.creatorService.applyAsCreator(user.id, dto);
   }
 
-<<<<<<< Updated upstream
-  /**
-   * GET /api/v1/creator/application/status
-   * Returns the authenticated user's creator application status.
-   */
-=======
   /** GET /api/v1/creator/application/status */
->>>>>>> Stashed changes
   @UseGuards(JwtAuthGuard)
   @Get('application/status')
   async getApplicationStatus(
@@ -82,13 +68,6 @@ export class CreatorController {
     return this.creatorService.getApplicationStatus(user.id);
   }
 
-<<<<<<< Updated upstream
-  /**
-   * GET /api/v1/creator/profile/:creatorId
-   * Public creator profile — no auth required.
-   */
-=======
->>>>>>> Stashed changes
   @Get('profile/:creatorId')
   async getPublicProfile(
     @Param('creatorId', ParseUUIDPipe) creatorId: string,
