@@ -1,8 +1,8 @@
 allowBuilds:
   '@sentry/cli': false
   msw: false
-  sharp: false
+  sharp: true
   typesense-instantsearch-adapter: false
-  unrs-resolver: false
+  unrs-resolver: true
 minimumReleaseAgeExclude:
   - shadcn@4.8.0
