@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useParams, notFound } from "next/navigation";
@@ -191,9 +191,20 @@ export default function SeriesDetailPage() {
   const params = useParams<{ slug: string }>();
   const seriesId = params.slug;
 
+  const [coverError, setCoverError] = useState(false);
+  const handleCoverError = useCallback(() => setCoverError(true), []);
+
   const { isAuthenticated, isLoading: authLoading } = useAuth();
-  const { current, chapters, detailLoading, detailError, fetchSeriesById, fetchChapters } =
-    useSeriesStore();
+  const {
+    current,
+    chapters,
+    detailLoading,
+    detailError,
+    chaptersLoading,
+    chaptersError,
+    fetchSeriesById,
+    fetchChapters,
+  } = useSeriesStore();
   const { records, fetchRecord } = useReadingStore();
 
   useEffect(() => {
@@ -346,7 +357,7 @@ export default function SeriesDetailPage() {
         {/* Cover */}
         <div className="hidden lg:block">
           <div className="relative w-full aspect-[2/3] rounded-2xl overflow-hidden border border-border/60 bg-muted shadow-lg shadow-black/10">
-            {current.coverUrl ? (
+            {current.coverUrl && !coverError ? (
               <Image
                 src={current.coverUrl}
                 alt={current.title}
@@ -354,6 +365,7 @@ export default function SeriesDetailPage() {
                 className="object-cover"
                 sizes="300px"
                 priority
+                onError={handleCoverError}
               />
             ) : (
               <div className="flex h-full items-center justify-center">
@@ -378,7 +390,26 @@ export default function SeriesDetailPage() {
           )}
         </h2>
 
-        {sortedChapters.length === 0 ? (
+        {chaptersLoading ? (
+          <div className="space-y-2">
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                className="rounded-xl border border-border/60 bg-card px-5 py-4 flex gap-4 animate-pulse"
+              >
+                <div className="h-4 w-8 rounded bg-muted shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 w-48 rounded bg-muted" />
+                  <div className="h-3 w-24 rounded bg-muted/60" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : chaptersError ? (
+          <div className="rounded-xl border border-border/60 border-dashed bg-muted/10 px-8 py-12 text-center">
+            <p className="text-sm text-destructive/80">{chaptersError}</p>
+          </div>
+        ) : sortedChapters.length === 0 ? (
           <div className="rounded-xl border border-border/60 border-dashed bg-muted/10 px-8 py-12 text-center">
             <p className="text-sm text-muted-foreground">
               No chapters available yet.

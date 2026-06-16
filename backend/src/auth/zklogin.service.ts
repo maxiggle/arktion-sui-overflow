@@ -129,7 +129,9 @@ export class ZkLoginService implements OnModuleInit {
     if (!res.ok) {
       const text = await res.text();
       this.logger.error(`Enoki /zklogin failed ${res.status}: ${text}`);
-      throw new BadGatewayException('Failed to retrieve zkLogin address from Enoki');
+      throw new BadGatewayException(
+        'Failed to retrieve zkLogin address from Enoki',
+      );
     }
 
     const body = (await res.json()) as {

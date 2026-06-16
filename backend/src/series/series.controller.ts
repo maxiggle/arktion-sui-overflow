@@ -1,17 +1,5 @@
-import {
-  Controller,
-  Get,
-  Param,
-  ParseUUIDPipe,
-  Query,
-} from '@nestjs/common';
-import {
-  IsInt,
-  IsOptional,
-  IsString,
-  Max,
-  Min,
-} from 'class-validator';
+import { Controller, Get, Param, ParseUUIDPipe, Query } from '@nestjs/common';
+import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
 import { SeriesService, SeriesDto, SeriesPage } from './series.service';
@@ -72,9 +60,7 @@ export class SeriesController {
    * Fetch a single series by its Postgres UUID.
    */
   @Get(':id')
-  async findById(
-    @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<SeriesDto> {
+  async findById(@Param('id', ParseUUIDPipe) id: string): Promise<SeriesDto> {
     return this.seriesService.findById(id);
   }
 }

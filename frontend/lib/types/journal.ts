@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { FormatType } from "./series";
+import { FormatType } from "./series";
 
 export interface JournalEntryDto {
   id: string;
@@ -34,7 +34,7 @@ export interface UpdateJournalEntryDto {
 
 export const createJournalSchema = z.object({
   externalTitle: z.string().min(1, "Title is required").max(500),
-  formatType: z.coerce.number().int().min(0).max(4),
+  formatType: z.coerce.number().int().min(0).max(4).transform((n) => n as FormatType),
   externalUrl: z.string().url("Must be a valid URL").max(2000),
   totalChapters: z.coerce.number().int().min(0).default(0),
   currentChapter: z.coerce.number().int().min(0).default(0),
