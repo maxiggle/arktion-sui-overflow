@@ -3,26 +3,37 @@ import {
   getOwnSeries,
   createSeries,
   updateSeries,
+  applyAsCreator as apiApplyAsCreator,
+  getApplicationStatus,
 } from "@/lib/api/creator";
 import { getErrorMessage } from "@/lib/api/client";
 import type { SeriesDto } from "@/lib/types/series";
-import type { CreateSeriesPayload, UpdateSeriesPayload } from "@/lib/types/creator";
+import type {
+  CreateSeriesPayload,
+  UpdateSeriesPayload,
+  ApplyCreatorPayload,
+  CreatorStatus,
+} from "@/lib/types/creator";
 
 interface CreatorState {
   series: SeriesDto[];
   loading: boolean;
   error: string | null;
+  creatorStatus: CreatorStatus;
 
   fetchOwnSeries: () => Promise<void>;
   createSeries: (payload: CreateSeriesPayload) => Promise<SeriesDto>;
   updateSeries: (seriesId: string, payload: UpdateSeriesPayload) => Promise<SeriesDto>;
+  applyAsCreator: (payload: ApplyCreatorPayload) => Promise<void>;
+  checkApplicationStatus: () => Promise<void>;
   reset: () => void;
 }
 
-export const useCreatorStore = create<CreatorState>((set, get) => ({
+export const useCreatorStore = create<CreatorState>((set) => ({
   series: [],
   loading: false,
   error: null,
+  creatorStatus: "NONE",
 
   fetchOwnSeries: async () => {
     set({ loading: true, error: null });
@@ -48,5 +59,16 @@ export const useCreatorStore = create<CreatorState>((set, get) => ({
     return updated;
   },
 
-  reset: () => set({ series: [], loading: false, error: null }),
+  applyAsCreator: async (payload) => {
+    await apiApplyAsCreator(payload);
+  },
+
+  checkApplicationStatus: async () => {
+    try {
+      const { status } = await getApplicationStatus();
+      set({ creatorStatus: status });
+    } catch {}
+  },
+
+  reset: () => set({ series: [], loading: false, error: null, creatorStatus: "NONE" }),
 }));

@@ -16,6 +16,7 @@ import type { SeriesDto } from '../series/series.service';
 import { CreatorService, CreatorProfileDto } from './creator.service';
 import { CreateSeriesDto } from './dto/create-series.dto';
 import { UpdateSeriesDto } from './dto/update-series.dto';
+import { ApplyCreatorDto } from './dto/apply-creator.dto';
 
 @Controller('creator')
 export class CreatorController {
@@ -58,6 +59,31 @@ export class CreatorController {
     @Body() dto: UpdateSeriesDto,
   ): Promise<SeriesDto> {
     return this.creatorService.updateSeries(user.id, seriesId, dto);
+  }
+
+  /**
+   * POST /api/v1/creator/apply
+   * Submit a creator application for the authenticated user.
+   */
+  @UseGuards(JwtAuthGuard)
+  @Post('apply')
+  async applyAsCreator(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ApplyCreatorDto,
+  ): Promise<void> {
+    return this.creatorService.applyAsCreator(user.id, dto);
+  }
+
+  /**
+   * GET /api/v1/creator/application/status
+   * Returns the authenticated user's creator application status.
+   */
+  @UseGuards(JwtAuthGuard)
+  @Get('application/status')
+  async getApplicationStatus(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<{ status: 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED' }> {
+    return this.creatorService.getApplicationStatus(user.id);
   }
 
   /**
