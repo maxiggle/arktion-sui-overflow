@@ -25,3 +25,5 @@ Arktion_Hackathon_Brief.pdf
 
 # Local development instructions
 CLAUDE.md
+.claude/
+arktion-test-ui/
