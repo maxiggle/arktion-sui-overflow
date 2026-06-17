@@ -89,6 +89,20 @@ export class AuthService {
     } else if (user.bootstrapState !== BOOTSTRAP_COMPLETE) {
       user = await this.resumePendingBootstrap(user);
       isNewUser = true;
+    } else {
+      const { salt, address: enokiAddress } =
+        await this.zkLogin.getEnokiAddress(dto.jwt);
+
+      if (user.walletAddress !== enokiAddress) {
+        this.logger.warn(
+          `Wallet address drift detected for user ${user.id}: ` +
+            `stored=${user.walletAddress} enoki=${enokiAddress} — syncing`,
+        );
+        user = await this.prisma.user.update({
+          where: { id: user.id },
+          data: { walletAddress: enokiAddress, zkLoginSalt: salt },
+        });
+      }
     }
 
     const session = await this.sessions.issue(user.id, meta);
