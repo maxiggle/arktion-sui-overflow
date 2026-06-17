@@ -53,9 +53,7 @@ function ChapterRow({
       })
     : null;
 
-  const href = isAuthenticated
-    ? `/read/${seriesId}/${chapter.id}`
-    : "/sign-in";
+  const href = `/read/${seriesId}/${chapter.id}`;
 
   return (
     <Link
@@ -194,7 +192,7 @@ export default function SeriesDetailPage() {
   const [coverError, setCoverError] = useState(false);
   const handleCoverError = useCallback(() => setCoverError(true), []);
 
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const {
     current,
     chapters,
@@ -312,12 +310,17 @@ export default function SeriesDetailPage() {
 
           {/* CTAs */}
           {authLoading ? null : !isAuthenticated ? (
-            <div className="flex flex-wrap gap-3">
-              <Button asChild size="lg">
-                <Link href="/sign-in">Sign in to read</Link>
-              </Button>
+            <div className="flex flex-wrap items-center gap-3">
+              {firstChapter ? (
+                <Button asChild size="lg">
+                  <Link href={`/read/${seriesId}/${firstChapter.id}`}>
+                    Start reading
+                    <ChevronRight className="h-4 w-4" />
+                  </Link>
+                </Button>
+              ) : null}
               <Button asChild variant="outline" size="lg">
-                <Link href="/explore">Back to explore</Link>
+                <Link href="/sign-in">Sign in to track progress</Link>
               </Button>
             </div>
           ) : (
@@ -344,12 +347,14 @@ export default function SeriesDetailPage() {
                 firstChapterNumber={firstChapter?.chapterNumber ?? 1}
               />
 
-              <Button asChild variant="outline" size="lg">
-                <Link href={`/tip/${seriesId}`}>
-                  <Heart className="h-4 w-4" />
-                  Tip creator
-                </Link>
-              </Button>
+              {current.creatorId && current.creatorId !== user?.id && (
+                <Button asChild variant="outline" size="lg">
+                  <Link href={`/tip/${seriesId}`}>
+                    <Heart className="h-4 w-4" />
+                    Tip creator
+                  </Link>
+                </Button>
+              )}
             </div>
           )}
         </div>

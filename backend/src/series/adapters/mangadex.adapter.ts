@@ -16,6 +16,9 @@ import { Injectable, Logger } from '@nestjs/common';
 const MANGADEX_BASE = 'https://api.mangadex.org';
 const USER_AGENT = 'Arktion/1.0 (hackathon demo; contact@arktion.app)';
 
+/** Abort a single MangaDex request if it takes longer than this. */
+const FETCH_TIMEOUT_MS = 8_000;
+
 export interface MangaDexChapter {
   /** MangaDex chapter UUID — stored as Chapter.externalId. */
   externalId: string;
@@ -92,7 +95,10 @@ export class MangaDexAdapter {
       params.append('contentRating[]', 'suggestive');
 
       const url = `${MANGADEX_BASE}/manga/${mangaExternalId}/feed?${params.toString()}`;
-      const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT } });
+      const res = await fetch(url, {
+        headers: { 'User-Agent': USER_AGENT },
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      });
 
       if (!res.ok) {
         throw new Error(
@@ -160,7 +166,10 @@ export class MangaDexAdapter {
     dataSaver = false,
   ): Promise<MangaDexPage[]> {
     const url = `${MANGADEX_BASE}/at-home/server/${chapterExternalId}`;
-    const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT } });
+    const res = await fetch(url, {
+      headers: { 'User-Agent': USER_AGENT },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
 
     if (!res.ok) {
       throw new Error(
