@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -33,7 +34,30 @@ export interface SeriesPage {
 
 @Injectable()
 export class SeriesService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly walrusAggregator: string;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly config: ConfigService,
+  ) {
+    this.walrusAggregator = this.config.get<string>(
+      'WALRUS_AGGREGATOR_URL',
+      'https://aggregator.walrus-testnet.walrus.space',
+    );
+  }
+
+  /**
+   * Normalise a stored cover value to a full URL.
+   *
+   * Older records saved a raw Walrus blobId (no scheme) instead of the full
+   * aggregator URL. Detect by the absence of "://" and construct the URL so
+   * the client always receives a usable image URL.
+   */
+  private resolveCoverUrl(raw: string | null): string | null {
+    if (!raw) return null;
+    if (raw.includes('://')) return raw;
+    return `${this.walrusAggregator}/v1/blobs/${raw}`;
+  }
 
   /**
    * Paginated series list with optional filters.
@@ -81,7 +105,15 @@ export class SeriesService {
       this.prisma.series.count({ where }),
     ]);
 
-    return { data: series, total, page, limit };
+    return {
+      data: series.map((s) => ({
+        ...s,
+        coverUrl: this.resolveCoverUrl(s.coverUrl),
+      })),
+      total,
+      page,
+      limit,
+    };
   }
 
   /** Find series by its Postgres UUID. Throws 404 if not found or soft-deleted. */
@@ -103,7 +135,7 @@ export class SeriesService {
     });
 
     if (!series) throw new NotFoundException(`Series ${id} not found`);
-    return series;
+    return { ...series, coverUrl: this.resolveCoverUrl(series.coverUrl) };
   }
 
   /** Find series by MangaDex (or other external platform) ID. */
@@ -128,6 +160,6 @@ export class SeriesService {
       throw new NotFoundException(
         `Series with externalId=${externalId} not found`,
       );
-    return series;
+    return { ...series, coverUrl: this.resolveCoverUrl(series.coverUrl) };
   }
 }

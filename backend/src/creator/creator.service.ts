@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
 
 import { Prisma } from '../../generated/prisma/client';
@@ -53,7 +54,23 @@ export interface CreatorEarningsDto {
 
 @Injectable()
 export class CreatorService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly walrusAggregator: string;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly config: ConfigService,
+  ) {
+    this.walrusAggregator = this.config.get<string>(
+      'WALRUS_AGGREGATOR_URL',
+      'https://aggregator.walrus-testnet.walrus.space',
+    );
+  }
+
+  private resolveCoverUrl(raw: string | null): string | null {
+    if (!raw) return null;
+    if (raw.includes('://')) return raw;
+    return `${this.walrusAggregator}/v1/blobs/${raw}`;
+  }
 
   async apply(
     userId: string,
@@ -142,7 +159,10 @@ export class CreatorService {
         creatorId: true,
       },
     });
-    return series;
+    return series.map((s) => ({
+      ...s,
+      coverUrl: this.resolveCoverUrl(s.coverUrl),
+    }));
   }
 
   async createSeries(userId: string, dto: CreateSeriesDto): Promise<SeriesDto> {
@@ -170,7 +190,7 @@ export class CreatorService {
         creatorId: true,
       },
     });
-    return series;
+    return { ...series, coverUrl: this.resolveCoverUrl(series.coverUrl) };
   }
 
   async updateSeries(
@@ -205,7 +225,7 @@ export class CreatorService {
         creatorId: true,
       },
     });
-    return series;
+    return { ...series, coverUrl: this.resolveCoverUrl(series.coverUrl) };
   }
 
   async getPublicProfile(creatorId: string): Promise<CreatorProfileDto> {
@@ -277,6 +297,28 @@ export class CreatorService {
   ): Promise<CreatorChapterDto> {
     await this.assertOwnership(userId, seriesId);
 
+    const series = await this.prisma.series.findFirst({
+      where: { id: seriesId },
+      select: { formatType: true },
+    });
+
+    const isNovel = series?.formatType === 0;
+
+    // Validate and narrow to concrete types before entering the transaction.
+    // TypeScript cannot narrow across async lambda boundaries, so we do it here.
+    if (isNovel) {
+      if (!dto.contentUrl) {
+        throw new ConflictException('Novel chapters require a contentUrl');
+      }
+    } else if (!dto.pages?.length) {
+      throw new ConflictException(
+        'Image chapters require at least one page URL',
+      );
+    }
+
+    const novelContentUrl: string = dto.contentUrl ?? '';
+    const imageUrls: string[] = dto.pages ?? [];
+
     let chapter: {
       id: string;
       seriesId: string;
@@ -295,13 +337,22 @@ export class CreatorService {
             chapterNumber: dto.chapterNumber,
             title: dto.title ?? null,
             language: 'en',
-            pageCount: dto.pages.length,
+            pageCount: isNovel ? 1 : imageUrls.length,
             publishedAt: new Date(),
             pages: {
-              create: dto.pages.map((url, idx) => ({
-                pageNumber: idx + 1,
-                imageUrl: url,
-              })),
+              create: isNovel
+                ? [
+                    {
+                      pageNumber: 1,
+                      contentUrl: novelContentUrl,
+                      imageUrl: null,
+                    },
+                  ]
+                : imageUrls.map((url, idx) => ({
+                    pageNumber: idx + 1,
+                    imageUrl: url,
+                    contentUrl: null,
+                  })),
             },
           },
           select: {
