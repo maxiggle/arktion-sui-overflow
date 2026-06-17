@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   ChevronLeft,
   ChevronRight,
+  Heart,
   Loader2,
   AlertCircle,
   Maximize2,
@@ -16,6 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useSeriesStore } from "@/stores/series.store";
 import { useReadingStore } from "@/stores/reading.store";
+import { useAuth } from "@/contexts/auth-context";
 import { ReadingStatus } from "@/lib/types/reading";
 import type { PageDto, ChapterDto } from "@/lib/types/series";
 
@@ -60,6 +62,35 @@ function MangaPage({
   );
 }
 
+// ─── Guest banner ─────────────────────────────────────────────────────────────
+
+function GuestBanner({ seriesId }: { seriesId: string }) {
+  const [dismissed, setDismissed] = useState(false);
+
+  if (dismissed) return null;
+
+  return (
+    <div className="flex items-center justify-between gap-3 px-4 py-2 bg-white/5 border-b border-white/10 text-xs text-white/60">
+      <span>Sign in to earn INK and track your progress</span>
+      <div className="flex items-center gap-3 shrink-0">
+        <Link
+          href={`/sign-in?next=/series/${seriesId}`}
+          className="text-white/90 hover:text-white underline underline-offset-2 transition-colors"
+        >
+          Sign in
+        </Link>
+        <button
+          onClick={() => setDismissed(true)}
+          className="text-white/30 hover:text-white/60 transition-colors"
+          aria-label="Dismiss"
+        >
+          ✕
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Top bar ─────────────────────────────────────────────────────────────────
 
 function ReaderTopBar({
@@ -70,6 +101,7 @@ function ReaderTopBar({
   nextChapter,
   isWide,
   onToggleWide,
+  showTip,
 }: {
   seriesId: string;
   seriesTitle: string | null;
@@ -78,6 +110,7 @@ function ReaderTopBar({
   nextChapter: ChapterDto | null;
   isWide: boolean;
   onToggleWide: () => void;
+  showTip: boolean;
 }) {
   const router = useRouter();
 
@@ -106,6 +139,16 @@ function ReaderTopBar({
       </div>
 
       <div className="flex items-center gap-1 shrink-0">
+        {showTip && (
+          <Link
+            href={`/tip/${seriesId}`}
+            className="hidden sm:inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            aria-label="Tip creator"
+          >
+            <Heart className="h-3.5 w-3.5" strokeWidth={1.5} />
+            <span>Tip</span>
+          </Link>
+        )}
         <button
           onClick={onToggleWide}
           aria-label={isWide ? "narrow view" : "wide view"}
@@ -154,46 +197,63 @@ function ReaderBottomNav({
   seriesId,
   prevChapter,
   nextChapter,
+  showTip,
 }: {
   seriesId: string;
   prevChapter: ChapterDto | null;
   nextChapter: ChapterDto | null;
+  showTip: boolean;
 }) {
   return (
-    <div className="mt-10 mb-16 flex items-center justify-center gap-4 px-4">
-      {prevChapter ? (
-        <Button asChild variant="outline">
-          <Link href={`/read/${seriesId}/${prevChapter.id}`}>
+    <div className="mt-10 mb-16 px-4 flex flex-col items-center gap-6">
+      {showTip && (
+        <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-white/5 px-6 py-5 flex flex-col items-center gap-3 text-center">
+          <Heart className="h-6 w-6 text-pink-400" strokeWidth={1.5} />
+          <p className="text-sm font-medium text-white/90">Enjoying this series?</p>
+          <p className="text-xs text-white/50">Send the creator a USDC tip directly on-chain.</p>
+          <Button asChild size="sm" className="bg-white text-black hover:bg-white/90 rounded-xl px-6">
+            <Link href={`/tip/${seriesId}`}>
+              Tip creator
+            </Link>
+          </Button>
+        </div>
+      )}
+
+      <div className="flex items-center justify-center gap-4">
+        {prevChapter ? (
+          <Button asChild variant="outline" className="border-white/20 text-white hover:bg-white/10">
+            <Link href={`/read/${seriesId}/${prevChapter.id}`}>
+              <ChevronLeft className="h-4 w-4" strokeWidth={1.5} />
+              Ch {prevChapter.chapterNumber}
+            </Link>
+          </Button>
+        ) : (
+          <Button variant="outline" disabled className="border-white/20 text-white/30">
             <ChevronLeft className="h-4 w-4" strokeWidth={1.5} />
-            Ch {prevChapter.chapterNumber}
+            No previous
+          </Button>
+        )}
+
+        <Button asChild variant="ghost" size="sm">
+          <Link href={`/series/${seriesId}`} className="text-white/40 text-xs hover:text-white/70">
+            Series
           </Link>
         </Button>
-      ) : (
-        <Button variant="outline" disabled>
-          <ChevronLeft className="h-4 w-4" strokeWidth={1.5} />
-          No previous
-        </Button>
-      )}
 
-      <Button asChild variant="ghost" size="sm">
-        <Link href={`/series/${seriesId}`} className="text-muted-foreground text-xs">
-          Series
-        </Link>
-      </Button>
-
-      {nextChapter ? (
-        <Button asChild variant="outline">
-          <Link href={`/read/${seriesId}/${nextChapter.id}`}>
-            Ch {nextChapter.chapterNumber}
+        {nextChapter ? (
+          <Button asChild variant="outline" className="border-white/20 text-white hover:bg-white/10">
+            <Link href={`/read/${seriesId}/${nextChapter.id}`}>
+              Ch {nextChapter.chapterNumber}
+              <ChevronRight className="h-4 w-4" strokeWidth={1.5} />
+            </Link>
+          </Button>
+        ) : (
+          <Button variant="outline" disabled className="border-white/20 text-white/30">
+            No next
             <ChevronRight className="h-4 w-4" strokeWidth={1.5} />
-          </Link>
-        </Button>
-      ) : (
-        <Button variant="outline" disabled>
-          No next
-          <ChevronRight className="h-4 w-4" strokeWidth={1.5} />
-        </Button>
-      )}
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
@@ -219,6 +279,7 @@ export default function ChapterReaderPage() {
     fetchSeriesById,
   } = useSeriesStore();
 
+  const { user } = useAuth();
   const { upsert } = useReadingStore();
   const progressRecorded = useRef(false);
 
@@ -254,24 +315,29 @@ export default function ChapterReaderPage() {
 
   const series = seriesById[seriesId] ?? null;
 
-  // Record reading progress once pages have loaded and chapter is known.
+  // Only show the tip button when the series has a creator and it isn't the logged-in user.
+  const showTip = !!user && !!series?.creatorId && series.creatorId !== user.id;
+
+  // Record reading progress only for authenticated users — guests read freely but earn nothing.
   useEffect(() => {
     if (
-      !progressRecorded.current &&
-      !pagesLoading &&
-      pages.length > 0 &&
-      currentChapter
+      !user ||
+      progressRecorded.current ||
+      pagesLoading ||
+      pages.length === 0 ||
+      !currentChapter
     ) {
-      progressRecorded.current = true;
-      upsert({
-        seriesId,
-        status: ReadingStatus.READING,
-        currentChapter: currentChapter.chapterNumber,
-      }).catch(() => {
-        // Non-critical — reading progress will sync on next successful upsert.
-      });
+      return;
     }
-  }, [pagesLoading, pages.length, currentChapter, seriesId, upsert]);
+    progressRecorded.current = true;
+    upsert({
+      seriesId,
+      status: ReadingStatus.READING,
+      currentChapter: currentChapter.chapterNumber,
+    }).catch(() => {
+      // Non-critical — reading progress will sync on next successful upsert.
+    });
+  }, [user, pagesLoading, pages.length, currentChapter, seriesId, upsert]);
 
   const maxContentWidth = isWide ? 1200 : 800;
 
@@ -285,10 +351,13 @@ export default function ChapterReaderPage() {
         nextChapter={nextChapter}
         isWide={isWide}
         onToggleWide={() => setIsWide((w) => !w)}
+        showTip={showTip}
       />
 
-      {/* Page canvas — padded below the fixed top bar */}
+      {/* Fixed top bar is 48px (h-12). Guest banner sits immediately below it. */}
       <div className="pt-12">
+        {!user && <GuestBanner seriesId={seriesId} />}
+
         {pagesLoading && (
           <div className="flex items-center justify-center min-h-[60vh]">
             <Loader2 className="h-8 w-8 animate-spin text-white/30" />
@@ -339,6 +408,7 @@ export default function ChapterReaderPage() {
           seriesId={seriesId}
           prevChapter={prevChapter}
           nextChapter={nextChapter}
+          showTip={showTip}
         />
       </div>
     </div>

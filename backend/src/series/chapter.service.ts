@@ -72,20 +72,33 @@ export class ChapterService {
     });
     if (!series) throw new NotFoundException('Series not found');
 
-    const isStale =
-      !series.chaptersSyncedAt ||
-      Date.now() - series.chaptersSyncedAt.getTime() > CHAPTER_SYNC_TTL_MS;
+    // Creator-published series have no externalId — skip MangaDex entirely.
+    if (series.externalId) {
+      const isStale =
+        !series.chaptersSyncedAt ||
+        Date.now() - series.chaptersSyncedAt.getTime() > CHAPTER_SYNC_TTL_MS;
 
-    if (force || isStale) {
-      await this.syncFromMangaDex(series.id, series.externalId, language).catch(
-        (err: Error) => {
-          // If the upstream sync fails, fall back to whatever we have cached.
-          // This keeps the demo working even if MangaDex is rate-limiting us.
+      if (force || isStale) {
+        const hasCachedChapters = await this.prisma.chapter.count({
+          where: { seriesId, language, deletedAt: null },
+        });
+
+        const syncPromise = this.syncFromMangaDex(
+          series.id,
+          series.externalId,
+          language,
+        ).catch((err: Error) => {
           this.logger.warn(
             `MangaDex sync failed for series=${seriesId} (${series.externalId}): ${err.message}. Falling back to cache.`,
           );
-        },
-      );
+        });
+
+        if (hasCachedChapters === 0) {
+          // No cache yet — must wait so the response isn't empty.
+          await syncPromise;
+        }
+        // Otherwise fire-and-forget: return cached rows immediately, sync updates DB for next call.
+      }
     }
 
     const chapters = await this.prisma.chapter.findMany({

@@ -1,28 +1,29 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
 
 /**
  * Auth guard for all protected routes.
  *
- * Renders a full-screen spinner while the auth context is resolving the
- * stored token. Once resolved:
- *   - authenticated   → render children
- *   - unauthenticated → redirect to /sign-in
+ * /read/* is intentionally excluded: chapter reading is open to guests.
+ * They can read freely but won't earn INK or have progress tracked.
  */
 export default function ProtectedLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+
+  const isReadRoute = pathname.startsWith("/read/");
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
+    if (!isLoading && !isAuthenticated && !isReadRoute) {
       router.replace("/sign-in");
     }
-  }, [isLoading, isAuthenticated, router]);
+  }, [isLoading, isAuthenticated, isReadRoute, router]);
 
   if (isLoading) {
     return (
@@ -32,9 +33,9 @@ export default function ProtectedLayout({
     );
   }
 
+  // Guests land here only via /read/* — render children directly.
   if (!isAuthenticated) {
-    // Render nothing while redirect fires
-    return null;
+    return isReadRoute ? <>{children}</> : null;
   }
 
   return <main className="min-h-screen bg-background">{children}</main>;
