@@ -25,7 +25,8 @@ export interface ChapterDto {
 
 export interface PageDto {
   pageNumber: number;
-  imageUrl: string;
+  imageUrl: string | null;
+  contentUrl: string | null;
 }
 
 /**
@@ -148,7 +149,7 @@ export class ChapterService {
           .catch(() => undefined);
       }
 
-      return pages;
+      return pages.map((p) => ({ ...p, contentUrl: null }));
     }
 
     // Uploaded content — read from Page table.
@@ -159,6 +160,7 @@ export class ChapterService {
     return rows.map((p) => ({
       pageNumber: p.pageNumber,
       imageUrl: p.imageUrl,
+      contentUrl: p.contentUrl,
     }));
   }
 

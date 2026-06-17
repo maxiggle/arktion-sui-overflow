@@ -46,6 +46,8 @@ const ALLOWED_MIME_TYPES = new Set([
   'image/png',
   'image/webp',
   'image/gif',
+  'text/markdown',
+  'text/plain',
 ]);
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 

@@ -55,8 +55,8 @@ export interface ChapterDto {
   publishedAt: string | null;
 }
 
-/** Matches the backend PageDto: { pageNumber, imageUrl } */
 export interface PageDto {
   pageNumber: number;
-  imageUrl: string;
+  imageUrl: string | null;
+  contentUrl: string | null;
 }

@@ -148,7 +148,9 @@ model Page {
   id         String   @id @default(uuid())
   chapterId  String   @map("chapter_id")
   pageNumber Int      @map("page_number")
-  imageUrl   String   @map("image_url") @db.Text
+  imageUrl   String?  @map("image_url") @db.Text
+  /// Walrus blob URL for novel chapters — one page = full chapter text.
+  contentUrl String?  @map("content_url") @db.Text
   width      Int?
   height     Int?
   createdAt  DateTime @default(now()) @map("created_at")

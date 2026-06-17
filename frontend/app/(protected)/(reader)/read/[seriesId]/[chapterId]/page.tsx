@@ -4,6 +4,8 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   ArrowLeft,
   ChevronLeft,
@@ -13,12 +15,15 @@ import {
   AlertCircle,
   Maximize2,
   Minimize2,
+  Clock,
+  Type,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSeriesStore } from "@/stores/series.store";
 import { useReadingStore } from "@/stores/reading.store";
 import { useAuth } from "@/contexts/auth-context";
 import { ReadingStatus } from "@/lib/types/reading";
+import { FormatType } from "@/lib/types/series";
 import type { PageDto, ChapterDto } from "@/lib/types/series";
 
 // ─── Page image ───────────────────────────────────────────────────────────────
@@ -62,6 +67,74 @@ function MangaPage({
   );
 }
 
+// ─── Novel reader ─────────────────────────────────────────────────────────────
+
+function NovelReader({ contentUrl }: { contentUrl: string }) {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [content, setContent] = useState("");
+
+  useEffect(() => {
+    setLoading(true);
+    setError(false);
+    fetch(contentUrl)
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.text();
+      })
+      .then((text) => {
+        setContent(text);
+        setLoading(false);
+      })
+      .catch(() => {
+        setError(true);
+        setLoading(false);
+      });
+  }, [contentUrl]);
+
+  const wordCount = content.trim()
+    ? content.trim().split(/\s+/).filter(Boolean).length
+    : 0;
+  const readTime = Math.max(1, Math.ceil(wordCount / 200));
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-32">
+        <Loader2 className="h-6 w-6 animate-spin text-white/30" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-32 gap-3 text-white/60">
+        <AlertCircle className="h-6 w-6" strokeWidth={1.5} />
+        <p className="text-sm">Failed to load chapter content.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {wordCount > 0 && (
+        <div className="flex items-center gap-4 px-6 py-3 border-b border-white/10 text-xs text-white/40">
+          <span className="flex items-center gap-1">
+            <Type className="h-3 w-3" />
+            {wordCount.toLocaleString()} words
+          </span>
+          <span className="flex items-center gap-1">
+            <Clock className="h-3 w-3" />
+            {readTime} min read
+          </span>
+        </div>
+      )}
+      <div className="px-6 py-8 prose prose-invert prose-lg max-w-none">
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+      </div>
+    </div>
+  );
+}
+
 // ─── Guest banner ─────────────────────────────────────────────────────────────
 
 function GuestBanner({ seriesId }: { seriesId: string }) {
@@ -102,6 +175,7 @@ function ReaderTopBar({
   isWide,
   onToggleWide,
   showTip,
+  isNovel,
 }: {
   seriesId: string;
   seriesTitle: string | null;
@@ -111,6 +185,7 @@ function ReaderTopBar({
   isWide: boolean;
   onToggleWide: () => void;
   showTip: boolean;
+  isNovel: boolean;
 }) {
   const router = useRouter();
 
@@ -149,17 +224,20 @@ function ReaderTopBar({
             <span>Tip</span>
           </Link>
         )}
-        <button
-          onClick={onToggleWide}
-          aria-label={isWide ? "narrow view" : "wide view"}
-          className="hidden sm:inline-flex items-center justify-center h-7 w-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-        >
-          {isWide ? (
-            <Minimize2 className="h-3.5 w-3.5" strokeWidth={1.5} />
-          ) : (
-            <Maximize2 className="h-3.5 w-3.5" strokeWidth={1.5} />
-          )}
-        </button>
+        {/* Wide mode only relevant for image readers */}
+        {!isNovel && (
+          <button
+            onClick={onToggleWide}
+            aria-label={isWide ? "narrow view" : "wide view"}
+            className="hidden sm:inline-flex items-center justify-center h-7 w-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+          >
+            {isWide ? (
+              <Minimize2 className="h-3.5 w-3.5" strokeWidth={1.5} />
+            ) : (
+              <Maximize2 className="h-3.5 w-3.5" strokeWidth={1.5} />
+            )}
+          </button>
+        )}
         <Button
           variant="ghost"
           size="sm"
@@ -210,45 +288,68 @@ function ReaderBottomNav({
         <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-white/5 px-6 py-5 flex flex-col items-center gap-3 text-center">
           <Heart className="h-6 w-6 text-pink-400" strokeWidth={1.5} />
           <p className="text-sm font-medium text-white/90">Enjoying this series?</p>
-          <p className="text-xs text-white/50">Send the creator a USDC tip directly on-chain.</p>
-          <Button asChild size="sm" className="bg-white text-black hover:bg-white/90 rounded-xl px-6">
-            <Link href={`/tip/${seriesId}`}>
-              Tip creator
-            </Link>
+          <p className="text-xs text-white/50">
+            Send the creator a USDC tip directly on-chain.
+          </p>
+          <Button
+            asChild
+            size="sm"
+            className="bg-white text-black hover:bg-white/90 rounded-xl px-6"
+          >
+            <Link href={`/tip/${seriesId}`}>Tip creator</Link>
           </Button>
         </div>
       )}
 
       <div className="flex items-center justify-center gap-4">
         {prevChapter ? (
-          <Button asChild variant="outline" className="border-white/20 text-white hover:bg-white/10">
+          <Button
+            asChild
+            variant="outline"
+            className="border-white/20 text-white hover:bg-white/10"
+          >
             <Link href={`/read/${seriesId}/${prevChapter.id}`}>
               <ChevronLeft className="h-4 w-4" strokeWidth={1.5} />
               Ch {prevChapter.chapterNumber}
             </Link>
           </Button>
         ) : (
-          <Button variant="outline" disabled className="border-white/20 text-white/30">
+          <Button
+            variant="outline"
+            disabled
+            className="border-white/20 text-white/30"
+          >
             <ChevronLeft className="h-4 w-4" strokeWidth={1.5} />
             No previous
           </Button>
         )}
 
         <Button asChild variant="ghost" size="sm">
-          <Link href={`/series/${seriesId}`} className="text-white/40 text-xs hover:text-white/70">
+          <Link
+            href={`/series/${seriesId}`}
+            className="text-white/40 text-xs hover:text-white/70"
+          >
             Series
           </Link>
         </Button>
 
         {nextChapter ? (
-          <Button asChild variant="outline" className="border-white/20 text-white hover:bg-white/10">
+          <Button
+            asChild
+            variant="outline"
+            className="border-white/20 text-white hover:bg-white/10"
+          >
             <Link href={`/read/${seriesId}/${nextChapter.id}`}>
               Ch {nextChapter.chapterNumber}
               <ChevronRight className="h-4 w-4" strokeWidth={1.5} />
             </Link>
           </Button>
         ) : (
-          <Button variant="outline" disabled className="border-white/20 text-white/30">
+          <Button
+            variant="outline"
+            disabled
+            className="border-white/20 text-white/30"
+          >
             No next
             <ChevronRight className="h-4 w-4" strokeWidth={1.5} />
           </Button>
@@ -294,17 +395,17 @@ export default function ChapterReaderPage() {
 
   const sortedChapters = useMemo(
     () => [...chapters].sort((a, b) => a.chapterNumber - b.chapterNumber),
-    [chapters],
+    [chapters]
   );
 
   const currentChapter = useMemo(
     () => chapters.find((c) => c.id === chapterId) ?? null,
-    [chapters, chapterId],
+    [chapters, chapterId]
   );
 
   const currentIdx = useMemo(
     () => sortedChapters.findIndex((c) => c.id === chapterId),
-    [sortedChapters, chapterId],
+    [sortedChapters, chapterId]
   );
 
   const prevChapter = currentIdx > 0 ? sortedChapters[currentIdx - 1] : null;
@@ -314,11 +415,12 @@ export default function ChapterReaderPage() {
       : null;
 
   const series = seriesById[seriesId] ?? null;
+  const isNovel = series?.formatType === FormatType.NOVEL;
 
-  // Only show the tip button when the series has a creator and it isn't the logged-in user.
-  const showTip = !!user && !!series?.creatorId && series.creatorId !== user.id;
+  const showTip =
+    !!user && !!series?.creatorId && series.creatorId !== user.id;
 
-  // Record reading progress only for authenticated users — guests read freely but earn nothing.
+  // Record progress after pages load
   useEffect(() => {
     if (
       !user ||
@@ -340,6 +442,7 @@ export default function ChapterReaderPage() {
   }, [user, pagesLoading, pages.length, currentChapter, seriesId, upsert]);
 
   const maxContentWidth = isWide ? 1200 : 800;
+  const novelContentUrl = pages[0]?.contentUrl ?? null;
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -352,9 +455,9 @@ export default function ChapterReaderPage() {
         isWide={isWide}
         onToggleWide={() => setIsWide((w) => !w)}
         showTip={showTip}
+        isNovel={isNovel}
       />
 
-      {/* Fixed top bar is 48px (h-12). Guest banner sits immediately below it. */}
       <div className="pt-12">
         {!user && <GuestBanner seriesId={seriesId} />}
 
@@ -367,7 +470,7 @@ export default function ChapterReaderPage() {
         {pagesError && !pagesLoading && (
           <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-white/60">
             <AlertCircle className="h-8 w-8" strokeWidth={1.5} />
-            <p className="text-sm">Failed to load chapter pages.</p>
+            <p className="text-sm">Failed to load chapter.</p>
             <Button
               variant="outline"
               size="sm"
@@ -379,29 +482,49 @@ export default function ChapterReaderPage() {
           </div>
         )}
 
-        {!pagesLoading && !pagesError && pages.length > 0 && (
-          <div
-            className="mx-auto"
-            style={{ maxWidth: maxContentWidth }}
-          >
-            {pages.map((page) => (
-              <MangaPage
-                key={page.pageNumber}
-                page={page}
-                maxWidth={maxContentWidth}
-                isPriority={page.pageNumber <= 3}
-              />
-            ))}
-          </div>
-        )}
+        {!pagesLoading && !pagesError && (
+          <>
+            {/* Novel: fetch text from Walrus, render with Tiptap */}
+            {isNovel && novelContentUrl && (
+              <div className="mx-auto max-w-2xl">
+                <NovelReader contentUrl={novelContentUrl} />
+              </div>
+            )}
 
-        {!pagesLoading && !pagesError && pages.length === 0 && (
-          <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3 text-white/60">
-            <p className="text-sm">No pages found for this chapter.</p>
-            <Button asChild variant="outline" size="sm" className="text-white border-white/20 hover:bg-white/10">
-              <Link href={`/series/${seriesId}`}>Back to series</Link>
-            </Button>
-          </div>
+            {/* Image-based formats */}
+            {!isNovel && pages.length > 0 && (
+              <div className="mx-auto" style={{ maxWidth: maxContentWidth }}>
+                {pages.map((page) => (
+                  <MangaPage
+                    key={page.pageNumber}
+                    page={page}
+                    maxWidth={maxContentWidth}
+                    isPriority={page.pageNumber <= 3}
+                  />
+                ))}
+              </div>
+            )}
+
+            {!isNovel && pages.length === 0 && (
+              <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3 text-white/60">
+                <p className="text-sm">No pages found for this chapter.</p>
+                <Button
+                  asChild
+                  variant="outline"
+                  size="sm"
+                  className="text-white border-white/20 hover:bg-white/10"
+                >
+                  <Link href={`/series/${seriesId}`}>Back to series</Link>
+                </Button>
+              </div>
+            )}
+
+            {isNovel && !novelContentUrl && !pagesLoading && (
+              <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3 text-white/60">
+                <p className="text-sm">Chapter content not found.</p>
+              </div>
+            )}
+          </>
         )}
 
         <ReaderBottomNav

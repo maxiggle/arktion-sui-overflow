@@ -72,7 +72,10 @@ export interface CreatorChapterDto {
 export interface CreateChapterPayload {
   chapterNumber: number;
   title?: string;
-  pages: string[];
+  /** Image-based formats: ordered Walrus image URLs. */
+  pages?: string[];
+  /** Novel format: Walrus blob URL for the chapter markdown text. */
+  contentUrl?: string;
 }
 
 export interface EarningsTipDto {

@@ -8,6 +8,8 @@ import {
   Max,
   MaxLength,
   Min,
+  MinLength,
+  ValidateIf,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -23,9 +25,17 @@ export class CreateChapterDto {
   @MaxLength(500)
   title?: string;
 
-  /** Ordered array of Walrus aggregator URLs — one per page. */
+  /** Image-based formats (manga, manhwa, manhua, webtoon): ordered Walrus URLs. */
+  @ValidateIf((o) => !o.contentUrl)
   @IsArray()
   @IsUrl({ require_tld: false }, { each: true })
   @ArrayMinSize(1)
-  pages!: string[];
+  pages?: string[];
+
+  /** Novel format: Walrus blob URL pointing to the chapter markdown text. */
+  @ValidateIf((o) => !o.pages)
+  @IsString()
+  @IsUrl({ require_tld: false })
+  @MinLength(1)
+  contentUrl?: string;
 }

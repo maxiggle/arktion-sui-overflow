@@ -87,7 +87,7 @@ export class ReadingController {
   async getRecord(
     @CurrentUser() user: AuthenticatedUser,
     @Param('seriesId', ParseUUIDPipe) seriesId: string,
-  ): Promise<ReadingRecordDto> {
+  ): Promise<ReadingRecordDto | null> {
     return this.readingService.getRecord(user.id, seriesId);
   }
 

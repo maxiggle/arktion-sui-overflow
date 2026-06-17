@@ -146,14 +146,11 @@ export class ReadingService {
   }
 
   /** A single reading record for a specific series. */
-  async getRecord(userId: string, seriesId: string): Promise<ReadingRecordDto> {
+  async getRecord(userId: string, seriesId: string): Promise<ReadingRecordDto | null> {
     const record = await this.prisma.readingRecord.findUnique({
       where: { userId_seriesId: { userId, seriesId } },
     });
-    if (!record) {
-      throw new NotFoundException(`No reading record for series ${seriesId}`);
-    }
-    return this.toDto(record);
+    return record ? this.toDto(record) : null;
   }
 
   /**
