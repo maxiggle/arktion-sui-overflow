@@ -2,7 +2,7 @@
 
 **The creator-owned publishing and reading ecosystem built on Sui.**
 
-> Sui Overflow 2026 hackathon submission · Entertainment & Culture track · Walrus track
+> Sui Overflow 2026 hackathon submission · Walrus track
 
 ---
 
