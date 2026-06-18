@@ -170,24 +170,33 @@ export class AiService {
 
     const systemPrompt = systemParts.join('\n');
 
-    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${this.openRouterKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://arktion.io',
-        'X-Title': 'Arktion AI Writing Assistant',
-      },
-      body: JSON.stringify({
-        model: resolvedModel,
-        max_tokens: 1024,
-        messages: [
-          { role: 'system' as const, content: systemPrompt },
-          ...history.map((m) => ({ role: m.role, content: m.content })),
-          { role: 'user' as const, content: prompt },
-        ],
-      }),
-    });
+    const abort = new AbortController();
+    const abortTimer = setTimeout(() => abort.abort(), 110_000);
+
+    let res: Response;
+    try {
+      res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        signal: abort.signal,
+        headers: {
+          Authorization: `Bearer ${this.openRouterKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://arktion.io',
+          'X-Title': 'Arktion AI Writing Assistant',
+        },
+        body: JSON.stringify({
+          model: resolvedModel,
+          max_tokens: 1024,
+          messages: [
+            { role: 'system' as const, content: systemPrompt },
+            ...history.map((m) => ({ role: m.role, content: m.content })),
+            { role: 'user' as const, content: prompt },
+          ],
+        }),
+      });
+    } finally {
+      clearTimeout(abortTimer);
+    }
 
     if (!res.ok) {
       const body = await res.text();
