@@ -1,8 +1,9 @@
 import {
+  ConflictException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
-  ConflictException,
 } from '@nestjs/common';
 import { Transaction } from '@mysten/sui/transactions';
 import { bcs } from '@mysten/sui/bcs';
@@ -10,15 +11,17 @@ import { bcs } from '@mysten/sui/bcs';
 import { PrismaService } from '../prisma/prisma.service';
 import { SuiService } from '../sui/sui.service';
 import { GasService } from '../sui/gas.service';
-import { InkService, InkTrigger } from '../ink/ink.service';
-import {
-  BadgesService,
-  BadgeCategory,
-  ContributorBadgeType,
-} from '../badges/badges.service';
+import { InkTrigger } from '../ink/ink.service';
+import { BadgeCategory, ContributorBadgeType } from '../badges/badges.service';
+
+import { Prisma } from '../../generated/prisma/client';
 
 import { CreateSubmissionDto } from './dto/create-submission.dto';
-import { SubmissionDto } from './dto/submission.dto';
+import type {
+  SubmissionDto,
+  VoteTallyDto,
+  CastVoteResponseDto,
+} from './dto/submission.dto';
 
 export type { CreateSubmissionDto, SubmissionDto };
 
@@ -30,6 +33,21 @@ export const SubmissionStatus = {
 export type SubmissionStatus =
   (typeof SubmissionStatus)[keyof typeof SubmissionStatus];
 
+const DAO = {
+  /** Minimum total INK weight across all votes for the outcome to be binding. */
+  QUORUM_INK: 500n,
+  /**
+   * Fraction of approve INK required for a submission to pass.
+   * 6000 = 60 %, expressed in basis points (0–10000).
+   */
+  APPROVAL_BPS: 6000n,
+  /** Minimum INK balance required to vote. */
+  MIN_INK_TO_VOTE: 1n,
+} as const;
+
+type VoteRow = { vote: number; inkWeight: bigint; voterId: string };
+type SubmissionRow = Prisma.SubmissionGetPayload<{ include: { votes: true } }>;
+
 @Injectable()
 export class SubmissionService {
   private readonly logger = new Logger(SubmissionService.name);
@@ -38,20 +56,84 @@ export class SubmissionService {
     private readonly prisma: PrismaService,
     private readonly sui: SuiService,
     private readonly gas: GasService,
-    private readonly inkService: InkService,
-    private readonly badgesService: BadgesService,
   ) {}
 
+  private buildTally(votes: VoteRow[], votingEndsAt: Date): VoteTallyDto {
+    let approveInk = 0n;
+    let rejectInk = 0n;
+    let approveCount = 0;
+    let rejectCount = 0;
+
+    for (const v of votes) {
+      if (v.vote === 1) {
+        approveInk += v.inkWeight;
+        approveCount++;
+      } else {
+        rejectInk += v.inkWeight;
+        rejectCount++;
+      }
+    }
+
+    const totalInk = approveInk + rejectInk;
+    const quorumMet = totalInk >= DAO.QUORUM_INK;
+
+    const approvalPct =
+      totalInk === 0n
+        ? 0
+        : Math.round(Number((approveInk * 1000n) / totalInk)) / 10;
+
+    const approveBps = totalInk === 0n ? 0n : (approveInk * 10000n) / totalInk;
+    const finalisable =
+      quorumMet &&
+      (approveBps >= DAO.APPROVAL_BPS ||
+        approveBps < 10000n - DAO.APPROVAL_BPS);
+
+    return {
+      approveCount,
+      rejectCount,
+      approveInk: approveInk.toString(),
+      rejectInk: rejectInk.toString(),
+      totalInk: totalInk.toString(),
+      approvalPct,
+      quorumMet,
+      finalisable,
+      expired: new Date() > votingEndsAt,
+    };
+  }
+
+  private toDto(row: SubmissionRow, callerId?: string): SubmissionDto {
+    const tally = this.buildTally(row.votes, row.votingEndsAt);
+    const myVote =
+      callerId != null
+        ? ((row.votes.find((v) => v.voterId === callerId)?.vote ?? null) as
+            | 1
+            | 0
+            | null)
+        : null;
+
+    return {
+      id: row.id,
+      title: row.title,
+      formatType: row.formatType,
+      externalUrl: row.externalUrl,
+      suggestedSource: row.suggestedSource,
+      status: row.status,
+      rewardClaimed: row.rewardClaimed,
+      reviewedAt: row.reviewedAt,
+      createdAt: row.createdAt,
+      votingEndsAt: row.votingEndsAt,
+      votes: tally,
+      myVote,
+    };
+  }
+
   /**
-   * Create a series suggestion.
+   * Submit a series suggestion.
    *
    * Phase 1 note: Postgres only — no on-chain Submission object.
-   * The submission::create Move function requires ctx.sender() == submitter
-   * (user must sign). User-signed PTBs are Batch 4.
-   *
    * The approve flow calls ink_earning::earn + badges::mint directly (as admin)
    * rather than routing through submission::claim_reward, achieving the same
-   * atomicity without needing the on-chain Submission object.
+   * atomicity without needing an on-chain Submission object.
    */
   async create(
     userId: string,
@@ -60,7 +142,6 @@ export class SubmissionService {
     const submission = await this.prisma.submission.create({
       data: {
         submitterId: userId,
-
         suiObjectId: `pending:${crypto.randomUUID()}`,
         title: dto.title,
         formatType: dto.formatType,
@@ -68,9 +149,84 @@ export class SubmissionService {
         suggestedSource: dto.suggestedSource,
         status: SubmissionStatus.PENDING,
       },
+      include: { votes: true },
     });
 
-    return this.toDto(submission);
+    return this.toDto(submission, userId);
+  }
+
+  /**
+   * Cast an INK-weighted vote on a pending submission.
+   *
+   * - Caller must hold ≥ MIN_INK_TO_VOTE INK (earned by reading on-chain).
+   * - INK balance is snapshot at cast time — not at finalisation.
+   * - One vote per reader. Changing your vote (upsert) is allowed.
+   * - After each vote the tally is re-checked; if quorum + decisive threshold
+   *   is met the submission auto-finalises.
+   */
+  async castVote(
+    submissionId: string,
+    userId: string,
+    vote: 0 | 1,
+  ): Promise<CastVoteResponseDto> {
+    const submission = await this.prisma.submission.findUnique({
+      where: { id: submissionId },
+      include: { votes: true },
+    });
+
+    if (!submission) {
+      throw new NotFoundException(`Submission ${submissionId} not found`);
+    }
+    if (submission.status !== SubmissionStatus.PENDING) {
+      throw new ConflictException('This submission has already been finalised');
+    }
+
+    const now = new Date();
+    if (now > submission.votingEndsAt) {
+      await this._finalise(submissionId, submission.votes);
+      throw new ConflictException(
+        'The voting window for this submission has closed',
+      );
+    }
+
+    const inkRow = await this.prisma.inkBalance.findUnique({
+      where: { userId },
+    });
+    const inkBalance = inkRow?.balance ?? 0n;
+    if (inkBalance < DAO.MIN_INK_TO_VOTE) {
+      throw new ForbiddenException(
+        'You need at least 1 INK to vote. Earn INK by reading chapters on Arktion.',
+      );
+    }
+
+    await this.prisma.submissionVote.upsert({
+      where: { submissionId_voterId: { submissionId, voterId: userId } },
+      create: { submissionId, voterId: userId, vote, inkWeight: inkBalance },
+      update: { vote, inkWeight: inkBalance },
+    });
+
+    const allVotes = (await this.prisma.submissionVote.findMany({
+      where: { submissionId },
+    })) as VoteRow[];
+
+    const tally = this.buildTally(allVotes, submission.votingEndsAt);
+    let autoFinalised = false;
+
+    if (tally.finalisable) {
+      const totalBig = BigInt(tally.totalInk);
+      const approveBig = BigInt(tally.approveInk);
+      const shouldApprove =
+        totalBig > 0n && (approveBig * 10000n) / totalBig >= DAO.APPROVAL_BPS;
+      await this._finalise(submissionId, allVotes, shouldApprove);
+      autoFinalised = true;
+    }
+
+    return {
+      submissionId,
+      vote,
+      inkWeight: inkBalance.toString(),
+      autoFinalised,
+    };
   }
 
   /** Submissions created by the authenticated user. */
@@ -78,54 +234,91 @@ export class SubmissionService {
     const submissions = await this.prisma.submission.findMany({
       where: { submitterId: userId },
       orderBy: { createdAt: 'desc' },
+      include: { votes: true },
     });
-    return submissions.map((submission) => this.toDto(submission));
+    return submissions.map((s) => this.toDto(s, userId));
   }
 
-  /** All pending submissions — admin only. */
+  /** All PENDING submissions — for DAO voters. Includes the caller's own vote. */
+  async getForDao(callerId: string): Promise<SubmissionDto[]> {
+    const submissions = await this.prisma.submission.findMany({
+      where: { status: SubmissionStatus.PENDING },
+      orderBy: { createdAt: 'asc' },
+      include: { votes: true },
+    });
+    return submissions.map((s) => this.toDto(s, callerId));
+  }
+
+  /** All pending submissions — admin view (no voter context needed). */
   async getPending(): Promise<SubmissionDto[]> {
     const submissions = await this.prisma.submission.findMany({
       where: { status: SubmissionStatus.PENDING },
       orderBy: { createdAt: 'asc' },
+      include: { votes: true },
     });
-    return submissions.map((submission) => this.toDto(submission));
+    return submissions.map((s) => this.toDto(s));
   }
 
   /**
-   * Approve a submission and atomically disburse the reward.
+   * Resolve a submission to APPROVED or REJECTED.
    *
-   * One PTB calls ink_earning::earn + badges::mint — both succeed or neither
-   * does. This matches the atomicity semantics of submission::claim_reward in
-   * the Move contract, without requiring an on-chain Submission object.
+   * Called automatically when quorum + decisive threshold is met (`forceApprove`
+   * is set by the caller), or lazily when the voting window has expired
+   * (`forceApprove` is `undefined` → decide from tally).
    *
-   * After the PTB succeeds, Postgres is updated in a single transaction:
-   * submission status + InkLedgerEntry + InkBalance + Passport + BadgeEarned.
+   * The status guard at the top prevents double-finalisation under concurrent requests.
    */
-  async approve(submissionId: string): Promise<SubmissionDto> {
+  private async _finalise(
+    submissionId: string,
+    votes: VoteRow[],
+    forceApprove?: boolean,
+  ): Promise<void> {
     const submission = await this.prisma.submission.findUnique({
       where: { id: submissionId },
       include: { submitter: true },
     });
 
-    if (!submission) {
-      throw new NotFoundException(`Submission ${submissionId} not found`);
-    }
-    if (submission.status !== SubmissionStatus.PENDING) {
-      throw new ConflictException(
-        `Submission is already ${submission.status === SubmissionStatus.APPROVED ? 'approved' : 'rejected'}`,
-      );
+    if (!submission || submission.status !== SubmissionStatus.PENDING) return;
+
+    let approve: boolean;
+    if (forceApprove !== undefined) {
+      approve = forceApprove;
+    } else {
+      const tally = this.buildTally(votes, submission.votingEndsAt);
+      if (!tally.quorumMet) {
+        approve = false;
+      } else {
+        const totalBig = BigInt(tally.totalInk);
+        const approveBig = BigInt(tally.approveInk);
+        approve =
+          totalBig > 0n && (approveBig * 10000n) / totalBig >= DAO.APPROVAL_BPS;
+      }
     }
 
-    const submitter = submission.submitter;
+    if (approve) {
+      await this._executeApproval(submission.id, submission.submitter);
+    } else {
+      await this.prisma.submission.update({
+        where: { id: submissionId },
+        data: { status: SubmissionStatus.REJECTED, reviewedAt: new Date() },
+      });
+      this.logger.log(`Submission ${submissionId} DAO-rejected`);
+    }
+  }
+
+  /**
+   * Execute the on-chain PTB + Postgres transaction for approval.
+   *
+   * One PTB calls ink_earning::earn + badges::mint — both succeed or neither
+   * does. After the PTB succeeds, Postgres is updated atomically:
+   * submission status + InkLedgerEntry + InkBalance + Passport + BadgeEarned.
+   */
+  private async _executeApproval(
+    submissionId: string,
+    submitter: { id: string; walletAddress: string },
+  ): Promise<void> {
     const idempotencyKey = `ink:${submitter.id}:submission_approved:${submissionId}`;
 
-    this.logger.log(
-      `Approving submission ${submissionId} for user ${submitter.id}`,
-    );
-
-    // Check if this user already has the Contributor badge — the contract
-    // enforces (recipient, category, badge_type, series_id) uniqueness and
-    // will abort with EBadgeAlreadyMinted on a second mint attempt.
     const alreadyHasBadge = !!(await this.prisma.badgeEarned.findFirst({
       where: {
         userId: submitter.id,
@@ -257,19 +450,36 @@ export class SubmissionService {
     this.logger.log(
       `Submission ${submissionId} approved: +50 INK + Contributor badge → ${submitter.walletAddress} tx=${txDigest}`,
     );
+  }
+
+  async adminApprove(submissionId: string): Promise<SubmissionDto> {
+    const submission = await this.prisma.submission.findUnique({
+      where: { id: submissionId },
+      include: { submitter: true, votes: true },
+    });
+    if (!submission) {
+      throw new NotFoundException(`Submission ${submissionId} not found`);
+    }
+    if (submission.status !== SubmissionStatus.PENDING) {
+      throw new ConflictException(
+        `Submission is already ${submission.status === SubmissionStatus.APPROVED ? 'approved' : 'rejected'}`,
+      );
+    }
+
+    await this._executeApproval(submissionId, submission.submitter);
 
     const updated = await this.prisma.submission.findUniqueOrThrow({
       where: { id: submissionId },
+      include: { votes: true },
     });
     return this.toDto(updated);
   }
 
-  /** Reject a pending submission. Postgres only — no chain call. */
-  async reject(submissionId: string): Promise<SubmissionDto> {
+  async adminReject(submissionId: string): Promise<SubmissionDto> {
     const submission = await this.prisma.submission.findUnique({
       where: { id: submissionId },
+      include: { votes: true },
     });
-
     if (!submission) {
       throw new NotFoundException(`Submission ${submissionId} not found`);
     }
@@ -279,36 +489,9 @@ export class SubmissionService {
 
     const updated = await this.prisma.submission.update({
       where: { id: submissionId },
-      data: {
-        status: SubmissionStatus.REJECTED,
-        reviewedAt: new Date(),
-      },
+      data: { status: SubmissionStatus.REJECTED, reviewedAt: new Date() },
+      include: { votes: true },
     });
-
     return this.toDto(updated);
-  }
-
-  private toDto(submission: {
-    id: string;
-    title: string;
-    formatType: number;
-    externalUrl: string;
-    suggestedSource: string;
-    status: number;
-    rewardClaimed: boolean;
-    reviewedAt: Date | null;
-    createdAt: Date;
-  }): SubmissionDto {
-    return {
-      id: submission.id,
-      title: submission.title,
-      formatType: submission.formatType,
-      externalUrl: submission.externalUrl,
-      suggestedSource: submission.suggestedSource,
-      status: submission.status,
-      rewardClaimed: submission.rewardClaimed,
-      reviewedAt: submission.reviewedAt,
-      createdAt: submission.createdAt,
-    };
   }
 }
