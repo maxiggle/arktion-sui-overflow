@@ -140,6 +140,32 @@ class EnvironmentVariables {
    */
   @IsString()
   TOTP_ENCRYPTION_KEY!: string;
+
+  // ─── AI / MemWal ─────────────────────────────────────────────────────────────
+
+  /** OpenRouter API key — get a free one at https://openrouter.ai */
+  @IsString()
+  @IsOptional()
+  OPENROUTER_API_KEY: string = '';
+
+  /** OpenRouter model string. Defaults to a free Llama model. */
+  @IsString()
+  @IsOptional()
+  OPENROUTER_MODEL: string = 'meta-llama/llama-3.1-8b-instruct:free';
+
+  /** Ed25519 delegate private key (hex) from the Walrus Memory dashboard. */
+  @IsString()
+  @IsOptional()
+  MEMWAL_PRIVATE_KEY: string = '';
+
+  /** MemWalAccount object ID on Sui (0x…). */
+  @IsString()
+  @IsOptional()
+  MEMWAL_ACCOUNT_ID: string = '';
+
+  @IsString()
+  @IsOptional()
+  MEMWAL_SERVER_URL: string = 'https://relayer-staging.memory.walrus.xyz';
 }
 
 export function validate(config: Record<string, unknown>) {

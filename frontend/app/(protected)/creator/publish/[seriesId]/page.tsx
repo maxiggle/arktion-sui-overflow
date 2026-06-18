@@ -3,12 +3,14 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { z } from "zod";
-import { BookOpen, Plus, Loader2 } from "lucide-react";
+import { BookOpen, Plus, Loader2, Sparkles } from "lucide-react";
 import { useCreatorStore } from "@/stores/creator.store";
+import { useAiStore } from "@/stores/ai.store";
 import { getErrorMessage } from "@/lib/api/client";
 import { FORMAT_LABELS, FormatType } from "@/lib/types/series";
 import { SeriesStatus } from "@/lib/types/creator";
 import { CoverImageUpload } from "@/components/creator/cover-image-upload";
+import { AiChatModal } from "@/components/creator/ai-chat-modal";
 
 const schema = z.object({
   title: z.string().min(1, "title is required").max(255),
@@ -38,6 +40,7 @@ export default function EditSeriesPage() {
     chaptersLoading,
     fetchChapters,
   } = useCreatorStore();
+  const { openChat } = useAiStore();
 
   const existing = series.find((s) => s.id === seriesId);
 
@@ -152,13 +155,26 @@ export default function EditSeriesPage() {
             {existing?.title}
           </p>
         </div>
-        <button
-          onClick={() => router.push("/creator/studio")}
-          className="text-xs text-muted-foreground hover:text-foreground transition-colors shrink-0"
-        >
-          ← studio
-        </button>
+        <div className="flex items-center gap-3 shrink-0">
+          {existing?.formatType === 0 && (
+            <button
+              onClick={() => openChat(seriesId)}
+              className="flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 transition-colors"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              AI assistant
+            </button>
+          )}
+          <button
+            onClick={() => router.push("/creator/studio")}
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            ← studio
+          </button>
+        </div>
       </div>
+
+      {existing && <AiChatModal seriesTitle={existing.title} />}
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Title */}

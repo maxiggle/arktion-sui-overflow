@@ -98,6 +98,23 @@ export async function uploadCreatorFile(
   return data;
 }
 
+export async function assistWriting(
+  seriesId: string,
+  prompt: string,
+  history: Array<{ role: "user" | "assistant"; content: string }> = [],
+  model?: string
+): Promise<{ answer: string; memoriesUsed: number }> {
+  const { data } = await apiClient.post<{
+    answer: string;
+    memoriesUsed: number;
+  }>(`/creator/series/${seriesId}/ai/assist`, {
+    prompt,
+    history,
+    ...(model ? { model } : {}),
+  });
+  return data;
+}
+
 export async function getCreatorPublicSeries(
   creatorId: string
 ): Promise<SeriesDto[]> {

@@ -26,16 +26,22 @@ export class CreateChapterDto {
   title?: string;
 
   /** Image-based formats (manga, manhwa, manhua, webtoon): ordered Walrus URLs. */
-  @ValidateIf((o) => !o.contentUrl)
+  @ValidateIf((o: CreateChapterDto) => !o.contentUrl)
   @IsArray()
   @IsUrl({ require_tld: false }, { each: true })
   @ArrayMinSize(1)
   pages?: string[];
 
   /** Novel format: Walrus blob URL pointing to the chapter markdown text. */
-  @ValidateIf((o) => !o.pages)
+  @ValidateIf((o: CreateChapterDto) => !o.pages)
   @IsString()
   @IsUrl({ require_tld: false })
   @MinLength(1)
   contentUrl?: string;
+
+  /** Raw markdown text for novel chapters — used to index the chapter in MemWal for the AI writing assistant. Not stored in the DB. */
+  @ValidateIf((o: CreateChapterDto) => !!o.contentUrl)
+  @IsOptional()
+  @IsString()
+  content?: string;
 }

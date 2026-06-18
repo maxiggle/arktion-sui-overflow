@@ -66,7 +66,9 @@ export default function NewChapterPage() {
   const [activeTab, setActiveTab] = useState<"write" | "preview">("write");
 
   // null = user hasn't toggled; panel open state is derived from isNovel (auto-opens for novels)
-  const [aiPanelUserOverride, setAiPanelUserOverride] = useState<boolean | null>(null);
+  const [aiPanelUserOverride, setAiPanelUserOverride] = useState<
+    boolean | null
+  >(null);
   const aiPanelOpen = aiPanelUserOverride ?? isNovel;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
