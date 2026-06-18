@@ -13,7 +13,8 @@ import {
 
 import { SubmissionService } from './submission.service';
 import { CreateSubmissionDto } from './dto/create-submission.dto';
-import type { SubmissionDto } from './dto/submission.dto';
+import { CastVoteDto } from './dto/cast-vote.dto';
+import type { SubmissionDto, CastVoteResponseDto } from './dto/submission.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../common/types/authenticated-user.type';
@@ -56,9 +57,42 @@ export class SubmissionController {
   }
 
   /**
+   * GET /api/v1/submissions/dao
+   *
+   * All PENDING submissions with live vote tallies.
+   * Authenticated readers use this page to browse and vote on submissions.
+   */
+  @Get('dao')
+  @UseGuards(JwtAuthGuard)
+  async getForDao(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<SubmissionDto[]> {
+    return this.submissionService.getForDao(user.id);
+  }
+
+  /**
+   * POST /api/v1/submissions/:id/vote
+   *
+   * Cast an INK-weighted DAO vote on a pending submission.
+   * Requires at least 1 INK (earned by reading chapters).
+   * Changing your vote is allowed — the previous vote is replaced.
+   * Auto-finalises if quorum (500 INK) + 60 % threshold is reached.
+   */
+  @Post(':id/vote')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async castVote(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CastVoteDto,
+  ): Promise<CastVoteResponseDto> {
+    return this.submissionService.castVote(id, user.id, dto.vote);
+  }
+
+  /**
    * GET /api/v1/submissions/pending
    *
-   * All pending submissions, oldest first. REVIEWER+ admin only.
+   * All pending submissions — admin view. REVIEWER+ only.
    */
   @Get('pending')
   @UseGuards(AdminJwtGuard, AdminRoleGuard)
@@ -70,8 +104,9 @@ export class SubmissionController {
   /**
    * POST /api/v1/submissions/:id/approve
    *
-   * Approve a pending submission. Atomically mints 50 INK + Contributor badge
-   * for the submitter via a single PTB. MODERATOR+ admin only.
+   * Admin emergency override — bypasses DAO quorum/threshold.
+   * Atomically mints 50 INK + Contributor badge via a single PTB.
+   * MODERATOR+ admin only.
    */
   @Post(':id/approve')
   @UseGuards(AdminJwtGuard, AdminRoleGuard)
@@ -79,16 +114,17 @@ export class SubmissionController {
   @UseInterceptors(AuditLogInterceptor)
   @AuditLog({ actionType: 'SUBMISSION_APPROVE', targetType: 'Submission' })
   @HttpCode(HttpStatus.OK)
-  async approve(
+  async adminApprove(
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<SubmissionDto> {
-    return this.submissionService.approve(id);
+    return this.submissionService.adminApprove(id);
   }
 
   /**
    * POST /api/v1/submissions/:id/reject
    *
-   * Reject a pending submission. Postgres only — no chain call. MODERATOR+ admin only.
+   * Admin emergency override — bypasses DAO voting window.
+   * Postgres only — no chain call. MODERATOR+ admin only.
    */
   @Post(':id/reject')
   @UseGuards(AdminJwtGuard, AdminRoleGuard)
@@ -96,7 +132,9 @@ export class SubmissionController {
   @UseInterceptors(AuditLogInterceptor)
   @AuditLog({ actionType: 'SUBMISSION_REJECT', targetType: 'Submission' })
   @HttpCode(HttpStatus.OK)
-  async reject(@Param('id', ParseUUIDPipe) id: string): Promise<SubmissionDto> {
-    return this.submissionService.reject(id);
+  async adminReject(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<SubmissionDto> {
+    return this.submissionService.adminReject(id);
   }
 }
