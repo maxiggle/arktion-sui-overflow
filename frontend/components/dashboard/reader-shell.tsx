@@ -19,6 +19,7 @@ import {
   Sun,
   Moon,
   PenLine,
+  Vote,
 } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { useCreatorStore } from "@/stores/creator.store";
@@ -31,6 +32,7 @@ const NAV = [
   { label: "passport", href: "/passport", icon: Fingerprint },
   { label: "wallet", href: "/wallet", icon: Wallet },
   { label: "badges", href: "/badges", icon: Medal },
+  { label: "submissions", href: "/submissions", icon: Vote },
 ] as const;
 
 const BOTTOM_NAV = [
