@@ -9,6 +9,7 @@ import { randomUUID } from 'crypto';
 
 import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { AiService } from '../ai/ai.service';
 import type { SeriesDto } from '../series/series.service';
 import type { CreateSeriesDto } from './dto/create-series.dto';
 import type { UpdateSeriesDto } from './dto/update-series.dto';
@@ -59,6 +60,7 @@ export class CreatorService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly aiService: AiService,
   ) {
     this.walrusAggregator = this.config.get<string>(
       'WALRUS_AGGREGATOR_URL',
@@ -378,11 +380,24 @@ export class CreatorService {
       throw err;
     }
 
-    return {
+    const result = {
       ...chapter,
       publishedAt: chapter.publishedAt?.toISOString() ?? null,
       createdAt: chapter.createdAt.toISOString(),
     };
+
+    // Index chapter content in MemWal for the AI writing assistant.
+    // Fire-and-forget — never blocks the response.
+    if (isNovel && dto.content) {
+      void this.aiService.rememberChapterAsync(
+        seriesId,
+        chapter.chapterNumber,
+        chapter.title,
+        dto.content,
+      );
+    }
+
+    return result;
   }
 
   async getEarnings(userId: string): Promise<CreatorEarningsDto> {

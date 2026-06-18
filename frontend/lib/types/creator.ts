@@ -76,6 +76,8 @@ export interface CreateChapterPayload {
   pages?: string[];
   /** Novel format: Walrus blob URL for the chapter markdown text. */
   contentUrl?: string;
+  /** Raw markdown — sent alongside contentUrl to index in MemWal for the AI assistant. */
+  content?: string;
 }
 
 export interface EarningsTipDto {
@@ -89,4 +91,14 @@ export interface EarningsTipDto {
 export interface CreatorEarningsDto {
   totalUsdcReceived: string;
   recentTips: EarningsTipDto[];
+}
+
+export interface AiChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface AssistResult {
+  answer: string;
+  memoriesUsed: number;
 }
