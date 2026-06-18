@@ -6,6 +6,40 @@
 
 ---
 
+## Table of Contents
+
+- [Introduction](#introduction)
+- [The Problem](#the-problem)
+- [What Is Built (Phase 1)](#what-is-built-phase-1--hackathon-scope)
+  - [Authentication & Identity](#authentication--identity)
+  - [Reading](#reading)
+  - [Economy & Community](#economy--community)
+  - [Creator Tools](#creator-tools)
+  - [Admin](#admin)
+  - [Infrastructure](#infrastructure)
+- [AI Writing Assistant](#ai-writing-assistant)
+  - [What it does](#what-it-does)
+  - [How the backend works](#how-the-backend-works)
+  - [Configuration](#configuration)
+- [Architecture](#architecture)
+  - [Stack](#stack)
+  - [How it fits together](#how-it-fits-together)
+  - [Frontend structure](#frontend-structure)
+  - [Three-layer currency](#three-layer-currency)
+  - [Smart contracts](#smart-contracts-8-modules-sui-testnet)
+  - [Why Sui](#why-sui)
+- [Roadmap](#roadmap)
+  - [Before June 20](#before-june-20-hackathon-deadline)
+  - [Phase 2 — Publishing and Payments](#phase-2--publishing-and-payments)
+  - [Phase 3 — Community Economy](#phase-3--community-economy)
+- [Local Development](#local-development)
+  - [Prerequisites](#prerequisites)
+  - [Backend](#backend)
+  - [Frontend](#frontend)
+  - [Required environment variables](#required-environment-variables)
+
+---
+
 ## Introduction
 
 Arktion is a censorship-resistant platform for manga, manhwa, manhua, web novels, and fanfiction. It gives creators permanent ownership of their audience and earnings, and gives readers a portable, verifiable on-chain reading identity.
