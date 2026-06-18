@@ -16,6 +16,7 @@ import { SubmissionModule } from './submission/submission.module';
 import { PaymentModule } from './payment/payment.module';
 import { AdminModule } from './admin/admin.module';
 import { CreatorModule } from './creator/creator.module';
+import { AiModule } from './ai/ai.module';
 import { AppController } from './app.controller';
 
 @Module({
@@ -45,6 +46,8 @@ import { AppController } from './app.controller';
     AdminModule,
     // Creator
     CreatorModule,
+    // AI writing assistant
+    AiModule,
   ],
   controllers: [AppController],
 })
