@@ -21,7 +21,9 @@ import {
 import { uploadCreatorFile, createCreatorChapter } from "@/lib/api/creator";
 import { getErrorMessage } from "@/lib/api/client";
 import { useSeriesStore } from "@/stores/series.store";
+import { useCreatorStore } from "@/stores/creator.store";
 import { FormatType } from "@/lib/types/series";
+import { SeriesStatus } from "@/lib/types/creator";
 import { AiPanel } from "@/components/creator/ai-panel";
 
 const schema = z.object({
@@ -46,6 +48,16 @@ export default function NewChapterPage() {
 
   const { byId, fetchSeriesById } = useSeriesStore();
   const series = byId[seriesId] ?? null;
+  const { updateSeries } = useCreatorStore();
+
+  async function promoteFromDraft() {
+    if (series?.status !== SeriesStatus.DRAFT) return;
+    try {
+      await updateSeries(seriesId, { status: SeriesStatus.ONGOING });
+    } catch {
+      // Non-blocking — chapter is already published; status can be changed manually.
+    }
+  }
 
   useEffect(() => {
     if (!byId[seriesId]) fetchSeriesById(seriesId);
@@ -179,6 +191,7 @@ export default function NewChapterPage() {
           contentUrl,
           content: markdown,
         });
+        await promoteFromDraft();
         router.push(`/creator/publish/${seriesId}`);
       } catch (err) {
         setServerError(getErrorMessage(err));
@@ -209,6 +222,7 @@ export default function NewChapterPage() {
         title: parsed.data.title,
         pages: readyPages.map((p) => p.url),
       });
+      await promoteFromDraft();
       router.push(`/creator/publish/${seriesId}`);
     } catch (err) {
       setServerError(getErrorMessage(err));

@@ -93,7 +93,7 @@ model Series {
   coverUrl        String?   @map("cover_url")
   coverBlobId     String?   @map("cover_blob_id")
   description     String?   @db.Text
-  status          String    @default("ongoing")
+  status          String    @default("draft")
   metadataBlobId  String?   @map("metadata_blob_id")
   /// Last time the chapter list was synced from the external source (MangaDex).
   chaptersSyncedAt DateTime? @map("chapters_synced_at")

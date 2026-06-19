@@ -25,12 +25,21 @@ export interface ApplyCreatorPayload {
 }
 
 export const SeriesStatus = {
+  DRAFT: "draft",
   ONGOING: "ongoing",
   COMPLETED: "completed",
   HIATUS: "hiatus",
   CANCELLED: "cancelled",
 } as const;
 export type SeriesStatus = (typeof SeriesStatus)[keyof typeof SeriesStatus];
+
+/** Statuses that make a series publicly visible. */
+export const PUBLIC_STATUSES = new Set<SeriesStatus>([
+  SeriesStatus.ONGOING,
+  SeriesStatus.COMPLETED,
+  SeriesStatus.HIATUS,
+  SeriesStatus.CANCELLED,
+]);
 
 export interface CreatorProfileDto {
   id: string;

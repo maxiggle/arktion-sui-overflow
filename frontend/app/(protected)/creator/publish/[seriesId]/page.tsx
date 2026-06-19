@@ -8,7 +8,7 @@ import { useCreatorStore } from "@/stores/creator.store";
 import { useAiStore } from "@/stores/ai.store";
 import { getErrorMessage } from "@/lib/api/client";
 import { FORMAT_LABELS, FormatType } from "@/lib/types/series";
-import { SeriesStatus } from "@/lib/types/creator";
+import { SeriesStatus, PUBLIC_STATUSES } from "@/lib/types/creator";
 import { CoverImageUpload } from "@/components/creator/cover-image-upload";
 import { AiChatModal } from "@/components/creator/ai-chat-modal";
 
@@ -16,7 +16,7 @@ const schema = z.object({
   title: z.string().min(1, "title is required").max(255),
   formatType: z.coerce.number().int().min(0).max(4),
   sourceLanguage: z.string().min(1, "language is required").max(10),
-  description: z.string().max(5000).optional(),
+  description: z.string().min(1, "synopsis is required").max(5000),
   coverUrl: z.string().url("must be a valid URL").optional().or(z.literal("")),
   status: z.nativeEnum(SeriesStatus),
 });
@@ -76,7 +76,7 @@ export default function EditSeriesPage() {
       sourceLanguage: existing.sourceLanguage,
       description: existing.description ?? "",
       coverUrl: existing.coverUrl ?? "",
-      status: (existing.status as SeriesStatus) ?? SeriesStatus.ONGOING,
+      status: (existing.status as SeriesStatus) ?? SeriesStatus.DRAFT,
     });
   }
 
@@ -103,10 +103,19 @@ export default function EditSeriesPage() {
     }
     setErrors({});
 
+    if (
+      PUBLIC_STATUSES.has(result.data.status) &&
+      (chapters === null || chapters.length === 0)
+    ) {
+      setServerError(
+        "Add at least one chapter before publishing this series.",
+      );
+      return;
+    }
+
     const payload = {
       ...result.data,
       coverUrl: result.data.coverUrl || undefined,
-      description: result.data.description || undefined,
     };
 
     try {
@@ -231,24 +240,39 @@ export default function EditSeriesPage() {
           </div>
         </div>
 
-        {/* Status */}
-        <div className="space-y-1.5">
-          <label className="text-xs font-medium text-foreground" htmlFor="status">
-            status
-          </label>
-          <select
-            id="status"
-            value={form.status}
-            onChange={(e) => set("status", e.target.value as SeriesStatus)}
-            className="w-full rounded-lg border border-border/60 bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-          >
-            {Object.values(SeriesStatus).map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </div>
+        {/* Status — locked until the series has at least one chapter */}
+        {(() => {
+          const hasChapters = chapters !== null && chapters.length > 0;
+          return (
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-foreground" htmlFor="status">
+                status
+              </label>
+              <select
+                id="status"
+                value={form.status}
+                onChange={(e) => set("status", e.target.value as SeriesStatus)}
+                disabled={!hasChapters}
+                className={`w-full rounded-lg border border-border/60 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 ${
+                  hasChapters
+                    ? "bg-background"
+                    : "bg-muted text-muted-foreground cursor-not-allowed"
+                }`}
+              >
+                {Object.values(SeriesStatus).map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+              {!hasChapters && (
+                <p className="text-xs text-muted-foreground">
+                  publish a chapter first to change the status
+                </p>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Cover image */}
         <div className="space-y-1.5">
@@ -268,8 +292,7 @@ export default function EditSeriesPage() {
         {/* Description */}
         <div className="space-y-1.5">
           <label className="text-xs font-medium text-foreground" htmlFor="description">
-            description{" "}
-            <span className="text-muted-foreground font-normal">(optional)</span>
+            synopsis
           </label>
           <textarea
             id="description"
