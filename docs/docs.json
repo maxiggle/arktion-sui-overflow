@@ -1,71 +1,84 @@
 {
-  "$schema": "https://mintlify.com/schema.json",
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
   "name": "Arktion",
-  "logo": {
-    "dark": "/logo/dark.svg",
-    "light": "/logo/light.svg"
-  },
-  "favicon": "/favicon.svg",
   "colors": {
     "primary": "#8B5CF6",
     "light": "#A78BFA",
-    "dark": "#6D28D9",
-    "anchors": {
-      "from": "#8B5CF6",
-      "to": "#EC4899"
+    "dark": "#6D28D9"
+  },
+  "favicon": "/favicon.svg",
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg"
+  },
+  "navigation": {
+    "pages": [
+      {
+        "group": "Overview",
+        "pages": [
+          "introduction",
+          "the-problem",
+          "the-solution",
+          "what-was-built"
+        ]
+      },
+      {
+        "group": "Platform",
+        "pages": [
+          "architecture",
+          "ink-system",
+          "ai-writing-assistant"
+        ]
+      },
+      {
+        "group": "Development",
+        "pages": [
+          "local-development",
+          "roadmap"
+        ]
+      }
+    ],
+    "global": {
+      "anchors": [
+        {
+          "anchor": "GitHub",
+          "href": "https://github.com/maxiggle/arktion-sui-overflow",
+          "icon": "github"
+        },
+        {
+          "anchor": "Sui Overflow 2026",
+          "href": "https://overflow.sui.io",
+          "icon": "trophy"
+        },
+        {
+          "anchor": "Walrus",
+          "href": "https://walrus.xyz",
+          "icon": "database"
+        }
+      ]
     }
   },
-  "topbarLinks": [
-    {
-      "name": "GitHub",
-      "url": "https://github.com/arktion/arktion-sui-overflow"
+  "navbar": {
+    "links": [
+      {
+        "label": "GitHub",
+        "href": "https://github.com/maxiggle/arktion-sui-overflow"
+      }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "Try Arktion",
+      "href": "https://arktion.io"
     }
-  ],
-  "topbarCtaButton": {
-    "name": "Try Arktion",
-    "url": "https://arktion.io"
   },
-  "tabs": [],
-  "anchors": [
-    {
-      "name": "Sui Overflow 2026",
-      "icon": "trophy",
-      "url": "https://overflow.sui.io"
-    },
-    {
-      "name": "Walrus",
-      "icon": "database",
-      "url": "https://walrus.xyz"
+  "contextual": {
+    "options": ["copy", "view", "claude", "chatgpt"]
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/maxiggle/arktion-sui-overflow",
+      "x": "https://x.com/arktion_io"
     }
-  ],
-  "navigation": [
-    {
-      "group": "Overview",
-      "pages": [
-        "introduction",
-        "the-problem",
-        "the-solution",
-        "what-was-built"
-      ]
-    },
-    {
-      "group": "Platform",
-      "pages": [
-        "architecture",
-        "ink-system",
-        "ai-writing-assistant"
-      ]
-    },
-    {
-      "group": "Development",
-      "pages": [
-        "local-development",
-        "roadmap"
-      ]
-    }
-  ],
-  "footerSocials": {
-    "github": "https://github.com/arktion/arktion-sui-overflow",
-    "twitter": "https://x.com/arktion_io"
   }
 }
