@@ -10,17 +10,14 @@
 
 - [Introduction](#introduction)
 - [The Problem](#the-problem)
-- [What Is Built (Phase 1)](#what-is-built-phase-1--hackathon-scope)
+- [The Solution](#the-solution)
+- [What was Built](#what-was-built)
   - [Authentication & Identity](#authentication--identity)
   - [Reading](#reading)
   - [Economy & Community](#economy--community)
   - [Creator Tools](#creator-tools)
   - [Admin](#admin)
   - [Infrastructure](#infrastructure)
-- [AI Writing Assistant](#ai-writing-assistant)
-  - [What it does](#what-it-does)
-  - [How the backend works](#how-the-backend-works)
-  - [Configuration](#configuration)
 - [Architecture](#architecture)
   - [Stack](#stack)
   - [How it fits together](#how-it-fits-together)
@@ -28,6 +25,10 @@
   - [Three-layer currency](#three-layer-currency)
   - [Smart contracts](#smart-contracts-8-modules-sui-testnet)
   - [Why Sui](#why-sui)
+- [AI Writing Assistant](#ai-writing-assistant)
+  - [What it does](#what-it-does)
+  - [How the backend works](#how-the-backend-works)
+  - [Configuration](#configuration)
 - [Roadmap](#roadmap)
   - [Before June 20](#before-june-20-hackathon-deadline)
   - [Phase 2 — Publishing and Payments](#phase-2--publishing-and-payments)
@@ -56,21 +57,27 @@ A fan translator earns $2,000/month building a loyal readership over years. One 
 
 This is not a rare edge case. It is the operating reality for thousands of creators in this space.
 
-| Actor | Core Pain |
-|---|---|
-| Fan Translator | Ko-fi and Patreon ban accounts without warning. No ownership of subscriber relationships. |
-| Original Novel Author | Platforms take 30–50% of revenue, own the audience, and can demonetize at will. |
-| Fanfiction Author | Zero monetization. AO3 prohibits it. Wattpad doesn't support it properly. Massive communities earn nothing. |
-| Comic / Manga Artist | No independent distribution. Webtoon and Tapas take significant cuts and own the audience. |
-| Scanlator | Translates visual works with no payment infrastructure. |
-| Reader (Tracker) | Reading history split across AniList, MAL, NovelUpdates, and spreadsheets. No portable identity. |
-| Reader (Tipper) | Ko-fi and Patreon work poorly in Nigeria, Philippines, Indonesia, Vietnam — where a huge proportion of this community lives. |
+| Actor                 | Core Pain                                                                                                                    |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Fan Translator        | Ko-fi and Patreon ban accounts without warning. No ownership of subscriber relationships.                                    |
+| Original Novel Author | Platforms take 30–50% of revenue, own the audience, and can demonetize at will.                                              |
+| Fanfiction Author     | Zero monetization. AO3 prohibits it. Wattpad doesn't support it properly. Massive communities earn nothing.                  |
+| Comic / Manga Artist  | No independent distribution. Webtoon and Tapas take significant cuts and own the audience.                                   |
+| Scanlator             | Translates visual works with no payment infrastructure.                                                                      |
+| Reader (Tracker)      | Reading history split across AniList, MAL, NovelUpdates, and spreadsheets. No portable identity.                             |
+| Reader (Tipper)       | Ko-fi and Patreon work poorly in Nigeria, Philippines, Indonesia, Vietnam — where a huge proportion of this community lives. |
 
 The fanfiction dimension is particularly underexplored. In Webnovel comment sections, readers regularly commission original crossover works (Naruto in the Marvel universe, translated Korean manhwa fanfics of Japanese originals) via Discord PayPal links that can be frozen. Arktion is the first platform to address this as a first-class feature.
 
 ---
 
-## What Is Built (Phase 1 — Hackathon Scope)
+## The Solution
+
+Arktion replaces the platform middleman with Sui smart contracts. Creators own their audience wallets directly — no platform can revoke that. Earnings flow peer-to-peer in USDC on Sui, gas-sponsored so users never need to hold SUI. Readers build a portable on-chain reading identity through the ArktionPassport, an NFT that accumulates history and levels across every series they read — not locked to any one platform. The INK token, earned only through reading, gives the community real governance weight over what content gets added without letting anyone buy their way in.
+
+---
+
+## What was Built
 
 ### Authentication & Identity
 
@@ -89,7 +96,7 @@ The fanfiction dimension is particularly underexplored. In Webnovel comment sect
 ### Economy & Community
 
 - **INK token** — earned through reading, never purchasable; minted on Sui via `ink_earning` with idempotency keys preventing double-minting. Earning rates: 10 INK per chapter read, 100 INK for completing a series, 50 INK when a community submission you made gets approved by the DAO.
-- **Six reader levels** — Wanderer (0 INK) → Seeker (500) → Devoted (2,000) → Lorekeeper (6,000) → Chronicle (15,000) → Arktion Elder (40,000). Level is calculated from *lifetime* INK earned, not current balance, so spending INK never demotes a reader. Each level has its own passport NFT visual — a dynamic SVG generated and served directly from the backend, which is what Sui explorers and NFT marketplaces display.
+- **Six reader levels** — Wanderer (0 INK) → Seeker (500) → Devoted (2,000) → Lorekeeper (6,000) → Chronicle (15,000) → Arktion Elder (40,000). Level is calculated from _lifetime_ INK earned, not current balance, so spending INK never demotes a reader. Each level has its own passport NFT visual — a dynamic SVG generated and served directly from the backend, which is what Sui explorers and NFT marketplaces display.
 - **USDC tipping** — direct to creator wallets on Sui, gas sponsored, ~400ms confirmation; wallet funded manually for now (Transak on-ramp is Phase 2)
 - **Soul-bound badge system** — reading achievements, community badges, series credentials; minted on-chain, non-transferable
 - **Community series submissions** — any reader can suggest a series for the platform; approved submissions earn the submitter 50 INK + a Contributor badge, minted atomically in a single sponsored PTB
@@ -139,23 +146,6 @@ The backend AI service (`AiService`) operates in two parts:
 
 **OpenRouter completion** — after recall, a single `fetch` call is made to `https://openrouter.ai/api/v1/chat/completions` with the series title, optional description, recalled memories, and conversation history assembled into a system prompt. The model is configurable per-request (the creator's selection from the Models tab is forwarded). An `AbortController` with a 110-second timeout prevents silent connection drops on long generations.
 
-**System prompt structure:**
-
-```
-You are a writing assistant for the novel series "{title}".
-Your job is to help the creator develop their story, maintain consistency, and give helpful writing guidance.
-
-Series description: {description}
-
-[Chapter excerpt 1]
-...published chapter content recalled from MemWal...
-
-[Chapter excerpt 6]
-
-Use these excerpts to ensure your answers are consistent with the existing story.
-Be concise, specific, and helpful. Respond as a knowledgeable creative collaborator.
-```
-
 ### Configuration
 
 ```env
@@ -166,7 +156,7 @@ MEMWAL_ACCOUNT_ID=        # MemWalAccount object ID (0x…)
 MEMWAL_SERVER_URL=https://relayer-staging.memory.walrus.xyz
 ```
 
-MemWal is optional — the assistant works without it, it just won't have access to published chapter context.
+MemWal is required. The service will refuse to start if `MEMWAL_PRIVATE_KEY` or `MEMWAL_ACCOUNT_ID` are missing — chapter memory is the backbone of the assistant's context.
 
 ---
 
@@ -174,15 +164,15 @@ MemWal is optional — the assistant works without it, it just won't have access
 
 ### Stack
 
-| Layer | Technology |
-|---|---|
-| Frontend | Next.js 16 (App Router), TypeScript, Tailwind CSS v4, Zustand, shadcn/ui |
-| Backend | NestJS, Prisma, PostgreSQL |
-| Auth | Sui zkLogin (Google OAuth → invisible wallet) |
-| Blockchain | Sui testnet, Move smart contracts |
-| Blob Storage | Walrus (decentralized, content-addressed) |
-| AI | OpenRouter API + MemWal (Walrus Memory) |
-| Payments | USDC on Sui (Transak on/off-ramp in Phase 2) |
+| Layer        | Technology                                                               |
+| ------------ | ------------------------------------------------------------------------ |
+| Frontend     | Next.js 16 (App Router), TypeScript, Tailwind CSS v4, Zustand, shadcn/ui |
+| Backend      | NestJS, Prisma, PostgreSQL                                               |
+| Auth         | Sui zkLogin (Google OAuth → invisible wallet)                            |
+| Blockchain   | Sui testnet, Move smart contracts                                        |
+| Blob Storage | Walrus (decentralized, content-addressed)                                |
+| AI           | OpenRouter API + MemWal (Walrus Memory)                                  |
+| Payments     | USDC on Sui (Transak on/off-ramp in Phase 2)                             |
 
 ### How it fits together
 
@@ -218,16 +208,16 @@ app/           Next.js pages — compose stores and components only
 
 ### Smart contracts (8 modules, Sui testnet)
 
-| Module | Description |
-|---|---|
-| `arktion::admin` | Admin capability and platform governance controls |
-| `arktion::ink` | Fungible INK token; TreasuryCap held by NestJS, closed-loop at launch |
-| `arktion::ink_earning` | Controlled minting gate; all earning triggers defined here; idempotency keys prevent double-minting |
-| `arktion::passport` | Soul-bound ArktionPassport NFT; non-transferable at Move type level |
-| `arktion::reading_history` | On-chain reading record anchor; full history archived to Walrus |
-| `arktion::journal` | External series entries stored on-chain for portability |
-| `arktion::submission` | Community series suggestion registry; approval triggers INK reward + Contributor badge |
-| `arktion::badges` | Soul-bound credential NFTs for reading achievements and community contributions |
+| Module                     | Description                                                                                         |
+| -------------------------- | --------------------------------------------------------------------------------------------------- |
+| `arktion::admin`           | Admin capability and platform governance controls                                                   |
+| `arktion::ink`             | Fungible INK token; TreasuryCap held by NestJS, closed-loop at launch                               |
+| `arktion::ink_earning`     | Controlled minting gate; all earning triggers defined here; idempotency keys prevent double-minting |
+| `arktion::passport`        | Soul-bound ArktionPassport NFT; non-transferable at Move type level                                 |
+| `arktion::reading_history` | On-chain reading record anchor; full history archived to Walrus                                     |
+| `arktion::journal`         | External series entries stored on-chain for portability                                             |
+| `arktion::submission`      | Community series suggestion registry; approval triggers INK reward + Contributor badge              |
+| `arktion::badges`          | Soul-bound credential NFTs for reading achievements and community contributions                     |
 
 ### Why Sui
 
@@ -331,7 +321,7 @@ JWT_EXPIRY=7d
 WALRUS_PUBLISHER_URL=https://publisher.walrus-testnet.walrus.space
 WALRUS_AGGREGATOR_URL=https://aggregator.walrus-testnet.walrus.space
 
-# AI (optional — assistant degrades gracefully without these)
+# AI — MemWal and OpenRouter are both required for the writing assistant
 OPENROUTER_API_KEY=
 OPENROUTER_MODEL=meta-llama/llama-3.1-8b-instruct:free
 MEMWAL_PRIVATE_KEY=
