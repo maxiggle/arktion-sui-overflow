@@ -25,18 +25,11 @@
       },
       {
         "group": "Platform",
-        "pages": [
-          "architecture",
-          "ink-system",
-          "ai-writing-assistant"
-        ]
+        "pages": ["architecture", "ink-system", "ai-writing-assistant"]
       },
       {
         "group": "Development",
-        "pages": [
-          "local-development",
-          "roadmap"
-        ]
+        "pages": ["local-development", "roadmap"]
       }
     ],
     "global": {
@@ -69,7 +62,7 @@
     "primary": {
       "type": "button",
       "label": "Try Arktion",
-      "href": "https://arktion.io"
+      "href": "https://arktion.up.railway.app"
     }
   },
   "contextual": {
