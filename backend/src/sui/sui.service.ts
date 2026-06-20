@@ -29,11 +29,16 @@ export class SuiService implements OnModuleInit {
   readonly earningRegistryId: string;
   readonly badgeRegistryId: string;
   readonly usdcCoinType: string;
+  readonly network: string;
 
   constructor(private readonly config: ConfigService) {
+    this.network = this.config.get<string>('SUI_NETWORK', 'testnet');
     this.client = new SuiGrpcClient({
-      network: 'testnet',
-      baseUrl: 'https://fullnode.testnet.sui.io:443',
+      network: this.network,
+      baseUrl: this.config.get<string>(
+        'SUI_RPC_URL',
+        'https://fullnode.testnet.sui.io:443',
+      ),
     });
 
     this.adminKeypair = this.loadKeypair('ADMIN_SECRET_KEY');
@@ -54,7 +59,9 @@ export class SuiService implements OnModuleInit {
 
     try {
       const val = await this.client.getReferenceGasPrice();
-      this.logger.log(`Connected to Sui at gas price ${val.referenceGasPrice}`);
+      this.logger.log(
+        `Connected to Sui (${this.network}) at gas price ${val.referenceGasPrice}`,
+      );
       this.logger.log(`Admin address:  ${adminAddress}`);
       this.logger.log(`Gas sponsor:    ${gasAddress}`);
     } catch (err) {
@@ -63,10 +70,7 @@ export class SuiService implements OnModuleInit {
     }
   }
 
-  /**
-   * Convenience: address of the admin keypair. Equivalent to
-   * `adminKeypair.toSuiAddress()` but cached lookup.
-   */
+  /** Convenience: Sui address derived from the admin keypair. */
   get adminAddress(): string {
     return this.adminKeypair.toSuiAddress();
   }
