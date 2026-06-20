@@ -1,0 +1,118 @@
+# Arktion INK System
+
+INK is the platform's on-chain reward token. It is minted on Sui by an admin-signed transaction every time a qualifying action is recorded. INK earned is permanent and cumulative — it is never spent or burned, which means level progression cannot be reversed.
+
+---
+
+## How INK Is Earned
+
+There are three triggers, each with a fixed mint amount defined in both the Move contract and the backend service.
+
+| Trigger | Amount | When it fires |
+|---|---|---|
+| `CHAPTER_READ` | **10 INK** | Chapter milestone crossed |
+| `SERIES_COMPLETE` | **100 INK** | Series marked as completed |
+| `SUBMISSION_APPROVED` | **50 INK** | A community submission is approved |
+
+### Chapter Read Milestones (in detail)
+
+Not every chapter read awards INK — only specific milestones do.
+
+**First chapter of a new series** — when a reader adds a series to their library and their current chapter is ≥ 1, a `CHAPTER_READ` reward fires immediately. This only triggers once per series, on the first record.
+
+**Every 25 chapters** — after the first chapter, INK is awarded at every 25-chapter interval crossed in a single update. For example:
+
+- Reading up to chapter 26 in one session crosses the ch25 milestone → **10 INK**
+- Jumping from chapter 0 to chapter 76 crosses ch25, ch50, and ch75 → **30 INK** (3 × 10)
+
+Milestones are: 25, 50, 75, 100, 125, 150 … (every multiple of 25).
+
+Each milestone is idempotent — the backend records an idempotency key per user per series per milestone. The Move contract also enforces this on-chain, so no milestone can be double-minted even if the Postgres mirror is out of sync.
+
+---
+
+## Reader Levels
+
+Levels are calculated from **total INK ever earned**, not the current balance. This prevents any pay-to-win or spending-down-your-level dynamic.
+
+There are 6 levels.
+
+---
+
+### ✅ Level 1 — Ink Novice
+- **Required:** 0 INK (starting level)
+- Every new reader begins here the moment their passport is created.
+
+---
+
+### ✅ Level 2 — Ink Apprentice
+- **Required:** 500 INK earned lifetime
+- Reached after reading the first chapter of 50 series, or completing 5 series, or a mix of both.
+
+---
+
+### ✅ Level 3 — Ink Adept
+- **Required:** 2,000 INK earned lifetime
+- Represents a committed regular reader. Completing 20 series gets you here, or sustained chapter milestone grinding across many series.
+
+---
+
+### ✅ Level 4 — Ink Scholar
+- **Required:** 6,000 INK earned lifetime
+- Deep library engagement required. A combination of completions, milestone reads, and approved submissions.
+
+---
+
+### ✅ Level 5 — Ink Veteran
+- **Required:** 15,000 INK earned lifetime
+- Long-term power reader. Requires consistent activity across months of reading or heavy submission contribution.
+
+---
+
+### ✅ Level 6 — Ink Master
+- **Required:** 40,000 INK earned lifetime
+- The top tier. Reserved for the most dedicated platform readers and contributors.
+
+---
+
+## When the Passport Is Updated
+
+The passport object lives on Sui (owned by the user's wallet) and is mirrored in Postgres. The Postgres mirror is the fast-path read — updated immediately on every qualifying action. The on-chain object is updated by admin-signed transactions (Phase 1) or user-signed PTBs (Batch 4, deferred).
+
+The passport is updated in the following situations:
+
+**On series added to library**
+- `seriesTracked + 1`
+
+**On series removed from library**
+- `seriesTracked - 1`
+
+**On any INK mint** (chapter milestone, series complete, submission approved)
+- `totalInkEarned + <amount>`
+- Level is recalculated from `totalInkEarned` after every mint
+
+**On series completed** (status set to COMPLETED)
+- `seriesCompleted + 1`
+- `chaptersRead + <currentChapter>` — the total chapters read in that series are added to the lifetime count
+
+**On Walrus snapshot** (`POST /passport/snapshot`)
+- `identityBlobId` updated with the new Walrus blob ID
+- The snapshot includes the full reading history, journal entries, and passport stats at that point in time
+- Phase 1: the blob ID is stored in Postgres only. On-chain anchoring via `passport::set_blob_id` requires a user-signed PTB and is deferred to Batch 4.
+
+---
+
+## Idempotency
+
+Every INK mint uses a deterministic idempotency key:
+
+```
+ink:{userId}:{trigger}:{seriesId}:{context}
+```
+
+Examples:
+- `ink:abc123:chapter_read:xyz789:chapter1` — first chapter of a series
+- `ink:abc123:chapter_read:xyz789:milestone25` — ch25 milestone
+- `ink:abc123:series_complete:xyz789` — series completed
+
+The backend checks Postgres first (fast path). If a digest is already recorded, it returns the cached result without hitting the chain. If the chain is called and returns `EDuplicateIdempotencyKey`, the contract aborts cleanly — no double-mint occurs.

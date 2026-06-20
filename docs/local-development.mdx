@@ -1,0 +1,85 @@
+---
+title: "Local Development"
+description: "Prerequisites, setup steps, and all required environment variables."
+---
+
+## Prerequisites
+
+- Node.js 20+
+- pnpm
+- PostgreSQL
+- Sui CLI (for contract deployment)
+
+## Backend
+
+```bash
+cd backend
+pnpm install
+cp .env.example .env   # fill in required values
+pnpm prisma migrate dev
+pnpm dev               # runs on :3000
+```
+
+## Frontend
+
+```bash
+cd frontend
+pnpm install
+pnpm dev               # runs on :3001
+```
+
+## Required Environment Variables
+
+### Backend (`.env`)
+
+```env
+# Database
+DATABASE_URL=postgresql://...
+
+# Sui
+SUI_NETWORK=testnet
+SUI_RPC_URL=https://fullnode.testnet.sui.io
+ADMIN_PRIVATE_KEY=          # NestJS gas sponsor wallet
+PACKAGE_ID=                 # deployed arktion package object ID
+INK_TREASURY_CAP_ID=
+PASSPORT_ADMIN_CAP_ID=
+BADGE_ADMIN_CAP_ID=
+SUBMISSION_REGISTRY_ID=
+INK_EARNING_CONFIG_ID=
+
+# Auth
+ENOKI_API_KEY=              # Sui zkLogin salt service
+JWT_SECRET=
+JWT_EXPIRY=7d
+
+# Walrus
+WALRUS_PUBLISHER_URL=https://publisher.walrus-testnet.walrus.space
+WALRUS_AGGREGATOR_URL=https://aggregator.walrus-testnet.walrus.space
+
+# AI — both are required; the service refuses to start without them
+OPENROUTER_API_KEY=
+OPENROUTER_MODEL=meta-llama/llama-3.1-8b-instruct:free
+MEMWAL_PRIVATE_KEY=
+MEMWAL_ACCOUNT_ID=
+MEMWAL_SERVER_URL=https://relayer-staging.memory.walrus.xyz
+
+# Admin
+TOTP_ENCRYPTION_KEY=
+```
+
+### Frontend (`.env.local`)
+
+```env
+NEXT_PUBLIC_API_URL=http://localhost:3000/api/v1
+NEXT_PUBLIC_GOOGLE_CLIENT_ID=
+NEXT_PUBLIC_SUI_NETWORK=testnet
+```
+
+## Ports
+
+| Service | Port |
+|---|---|
+| NestJS backend | 3000 |
+| Next.js frontend | 3001 |
+
+The API prefix is `/api/v1`. All frontend API calls go through the single axios instance at `lib/api/client.ts`.

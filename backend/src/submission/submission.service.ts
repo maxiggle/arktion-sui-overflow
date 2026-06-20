@@ -6,7 +6,6 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Transaction } from '@mysten/sui/transactions';
-import { bcs } from '@mysten/sui/bcs';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { SuiService } from '../sui/sui.service';
@@ -337,8 +336,8 @@ export class SubmissionService {
         tx.object(this.sui.inkTreasuryCapId),
         tx.object(this.sui.earningRegistryId),
         tx.pure.address(submitter.walletAddress),
-        tx.pure(bcs.u8().serialize(InkTrigger.SUBMISSION_APPROVED).toBytes()),
-        tx.pure(bcs.string().serialize(idempotencyKey).toBytes()),
+        tx.pure.u8(InkTrigger.SUBMISSION_APPROVED),
+        tx.pure.string(idempotencyKey),
       ],
     });
 
@@ -349,16 +348,11 @@ export class SubmissionService {
           tx.object(this.sui.adminCapId),
           tx.object(this.sui.badgeRegistryId),
           tx.pure.address(submitter.walletAddress),
-          tx.pure(bcs.u8().serialize(BadgeCategory.CONTRIBUTOR).toBytes()),
-          tx.pure(
-            bcs
-              .u8()
-              .serialize(ContributorBadgeType.SUBMISSION_APPROVED)
-              .toBytes(),
-          ),
-          tx.pure(bcs.string().serialize('').toBytes()),
-          tx.pure(bcs.u8().serialize(0).toBytes()),
-          tx.pure(bcs.vector(bcs.u8()).serialize([]).toBytes()),
+          tx.pure.u8(BadgeCategory.CONTRIBUTOR),
+          tx.pure.u8(ContributorBadgeType.SUBMISSION_APPROVED),
+          tx.pure.string(''),
+          tx.pure.u8(0),
+          tx.pure.vector('u8', []),
         ],
       });
     }

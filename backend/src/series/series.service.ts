@@ -76,8 +76,10 @@ export class SeriesService {
 
     const where = {
       deletedAt: null,
+      // Draft series are never visible on the public explore page.
+      // If a specific non-draft status is requested, honour it; otherwise exclude drafts.
+      status: status && status !== 'draft' ? status : { not: 'draft' },
       ...(formatType !== undefined && { formatType }),
-      ...(status && { status }),
       ...(search && {
         title: { contains: search, mode: 'insensitive' as const },
       }),

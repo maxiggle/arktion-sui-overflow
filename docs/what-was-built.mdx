@@ -1,0 +1,57 @@
+---
+title: "What was Built"
+description: "Phase 1 hackathon scope — everything shipped for Sui Overflow 2026."
+---
+
+<Note>
+  This covers Phase 1 — the Sui Overflow 2026 hackathon scope. See [Roadmap](/roadmap) for what comes next.
+</Note>
+
+## Authentication & Identity
+
+- **Google OAuth with invisible Sui wallet** via zkLogin — no seed phrase, no browser extension, no crypto knowledge required.
+- **ArktionPassport** minted on first login — soul-bound NFT accumulating reading history, INK balance, badges, and level; non-transferable at the Move type level.
+- **Six reader levels** (Wanderer → Arktion Elder) based on INK earned, not spent — no pay-to-win.
+
+## Reading
+
+- **Reading library** — track progress across all series with statuses: Reading, Completed, On-Hold, Dropped, Plan to Read.
+- **Format-aware reader** — vertical scroll for manhwa/webtoon, paginated for manga/manhua, markdown renderer for novels.
+- **MangaDex integration** — 10,000+ series available at launch via API adapter.
+- **External journal** — track series on other platforms stored on-chain for portability.
+- **Reading history page** — full log of chapters read across all series.
+
+## Economy & Community
+
+- **INK token** — earned through reading, never purchasable; minted on Sui via `ink_earning` with idempotency keys preventing double-minting. Rates: 10 INK per chapter milestone, 100 INK for completing a series, 50 INK when a community submission you made gets approved by the DAO. See [INK System](/ink-system) for full details.
+- **Six reader levels** — Wanderer (0 INK) → Seeker (500) → Devoted (2,000) → Lorekeeper (6,000) → Chronicle (15,000) → Arktion Elder (40,000). Level is calculated from _lifetime_ INK earned, not current balance.
+- **USDC tipping** — direct to creator wallets on Sui. USDC transfers are free on Sui, ~400ms confirmation.
+- **Soul-bound badge system** — reading achievements, community badges, series credentials; minted on-chain, non-transferable.
+- **Community series submissions** — any reader can suggest a series for the platform; approved submissions earn the submitter 50 INK + a Contributor badge, minted atomically in a single sponsored PTB.
+- **DAO voting on submissions** — INK-weighted community governance.
+  - Eligibility: must hold at least 1 INK (must have read at least one chapter).
+  - Vote weight: current INK balance at cast time.
+  - Quorum: 500 total INK weight across all votes.
+  - Approval threshold: 60%.
+  - Voting window: 7 days. Auto-finalises when quorum and a decisive margin are both met.
+  - Admin emergency override retained for spam or abuse cases.
+
+## Creator Tools
+
+- **Creator application flow** — creators apply from within the reader app; application status tracked in Postgres.
+- **Creator portal** — publish series, manage chapters, view earnings.
+- **Novel chapter editor** — split-pane markdown editor with live preview, word count, and read-time estimate; content uploaded to Walrus.
+- **Image chapter upload** — drag-and-drop page upload for manga/manhwa formats, uploaded to Walrus.
+- **AI Writing Assistant** — context-aware writing panel embedded in the chapter editor. See [AI Writing Assistant](/ai-writing-assistant).
+
+## Admin
+
+- **Admin dashboard** — REVIEWER and MODERATOR roles with TOTP, audit-logged actions, user management, content reports, and on-chain contract monitoring.
+- **Four-eyes principle** — admin role assignment requires confirmation from a second admin.
+
+## Infrastructure
+
+- **8 Move smart contracts** deployed on Sui testnet (`ink`, `ink_earning`, `passport`, `reading_history`, `journal`, `submission`, `badges`, `admin`).
+- **NestJS backend** — sole point of contact with Sui; constructs, sponsors, and submits every transaction.
+- **Gas sponsorship** — every user transaction is wrapped in a sponsored PTB; users never need SUI.
+- **Walrus storage** — novel chapter content, badge metadata, and reading history snapshots stored as content-addressed blobs.

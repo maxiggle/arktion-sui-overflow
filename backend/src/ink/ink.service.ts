@@ -1,6 +1,5 @@
 import { Injectable, Logger, ConflictException } from '@nestjs/common';
 import { Transaction } from '@mysten/sui/transactions';
-import { bcs } from '@mysten/sui/bcs';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { SuiService } from '../sui/sui.service';
@@ -125,8 +124,8 @@ export class InkService {
         tx.object(this.sui.inkTreasuryCapId),
         tx.object(this.sui.earningRegistryId),
         tx.pure.address(walletAddress),
-        tx.pure(bcs.u8().serialize(triggerType).toBytes()),
-        tx.pure(bcs.string().serialize(idempotencyKey).toBytes()),
+        tx.pure.u8(triggerType),
+        tx.pure.string(idempotencyKey),
       ],
     });
 

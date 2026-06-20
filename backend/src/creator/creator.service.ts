@@ -12,6 +12,14 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
 import type { SeriesDto } from '../series/series.service';
 import type { CreateSeriesDto } from './dto/create-series.dto';
+import { SeriesStatus } from './dto/create-series.dto';
+
+const PUBLIC_STATUSES = new Set<SeriesStatus>([
+  SeriesStatus.ONGOING,
+  SeriesStatus.COMPLETED,
+  SeriesStatus.HIATUS,
+  SeriesStatus.CANCELLED,
+]);
 import type { UpdateSeriesDto } from './dto/update-series.dto';
 import type { ApplyCreatorDto } from './dto/apply-creator.dto';
 import type { CreateChapterDto } from './dto/create-chapter.dto';
@@ -176,7 +184,7 @@ export class CreatorService {
         sourceLanguage: dto.sourceLanguage,
         description: dto.description ?? null,
         coverUrl: dto.coverUrl ?? null,
-        status: dto.status ?? 'ongoing',
+        status: dto.status ?? 'draft',
         creatorId: userId,
       },
       select: {
@@ -201,6 +209,17 @@ export class CreatorService {
     dto: UpdateSeriesDto,
   ): Promise<SeriesDto> {
     await this.assertOwnership(userId, seriesId);
+
+    if (dto.status && PUBLIC_STATUSES.has(dto.status)) {
+      const chapterCount = await this.prisma.chapter.count({
+        where: { seriesId, deletedAt: null },
+      });
+      if (chapterCount === 0) {
+        throw new ConflictException(
+          'A series must have at least one chapter before it can be published',
+        );
+      }
+    }
 
     const series = await this.prisma.series.update({
       where: { id: seriesId },

@@ -1,0 +1,58 @@
+---
+title: "AI Writing Assistant"
+description: "Context-aware writing assistant for original novel creators, powered by MemWal and OpenRouter."
+---
+
+<Note>
+  The AI writing assistant is a bonus feature built on top of Phase 1. It was not in the original hackathon scope but extends naturally from the creator tooling.
+</Note>
+
+The assistant lives as a collapsible sidebar panel inside the novel chapter editor. It has three tabs.
+
+## Tabs
+
+**Chat** — multi-turn conversation scoped to the creator's series. Ask questions about plot consistency, character motivations, or brainstorm story directions. Every message includes the full conversation history so the model maintains context across the session. Responses render as markdown. Individual assistant messages can be inserted directly at the cursor position in the editor.
+
+**Suggest** — generates a 2–3 paragraph continuation based on the last 3,000 characters of the current chapter draft. The creator can Accept (appending the text to the editor) or Reject. Auto mode fires a suggestion automatically 3 seconds after the user stops typing, if the chapter has at least 100 characters.
+
+**Models** — browse and switch the underlying language model. Fetches the full OpenRouter catalogue live, filtered to text-output models only. Shows free and paid models separately with context window size. The selected model is persisted in the store and used for all subsequent chat and suggestion requests.
+
+## How the Backend Works
+
+The backend AI service (`AiService`) operates in two parts.
+
+### MemWal Recall
+
+When a creator has published chapters, those chapters are indexed in [MemWal](https://memory.walrus.xyz) (Walrus Memory), a Walrus-backed semantic memory store, scoped to a namespace per series (`arktion-{seriesId}`).
+
+When a new query arrives, the service recalls the most relevant 6 chapter excerpts and prepends them to the system prompt. This grounds the model in the series' actual content — characters, events, writing style — without the creator having to paste context manually.
+
+Indexing happens fire-and-forget after chapter publish; it never blocks the publish response.
+
+### OpenRouter Completion
+
+After recall, a single `fetch` call is made to `https://openrouter.ai/api/v1/chat/completions` with the series title, optional description, recalled memories, and conversation history assembled into a system prompt. The model is configurable per-request (the creator's selection from the Models tab is forwarded). An `AbortController` with a 110-second timeout prevents silent connection drops on long generations.
+
+## Configuration
+
+```env
+OPENROUTER_API_KEY=       # get a free key at openrouter.ai
+OPENROUTER_MODEL=meta-llama/llama-3.1-8b-instruct:free   # default; overridable per-request
+MEMWAL_PRIVATE_KEY=       # Ed25519 delegate key from memory.walrus.xyz dashboard
+MEMWAL_ACCOUNT_ID=        # MemWalAccount object ID (0x…)
+MEMWAL_SERVER_URL=https://relayer-staging.memory.walrus.xyz
+```
+
+<Warning>
+  MemWal is **required**. The service will refuse to start if `MEMWAL_PRIVATE_KEY` or `MEMWAL_ACCOUNT_ID` are missing — chapter memory is the backbone of the assistant's context.
+</Warning>
+
+## MemWal Namespace Isolation
+
+Each series has its own isolated memory bucket. The namespace format is:
+
+```
+arktion-{seriesId}
+```
+
+This means memories from one creator's series never bleed into another's. A creator working on Series A only gets recalled context from Series A.

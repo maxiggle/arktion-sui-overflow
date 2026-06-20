@@ -5,9 +5,11 @@ import {
   IsString,
   IsUrl,
   MaxLength,
+  MinLength,
 } from 'class-validator';
 
 export enum SeriesStatus {
+  DRAFT = 'draft',
   ONGOING = 'ongoing',
   COMPLETED = 'completed',
   HIATUS = 'hiatus',
@@ -18,22 +20,24 @@ export class CreateSeriesDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(255)
-  title: string;
+  title!: string;
 
   @IsEnum([0, 1, 2, 3, 4], {
-    message: 'formatType must be 0 (novel) 1 (manga) 2 (manhwa) 3 (manhua) 4 (webtoon)',
+    message:
+      'formatType must be 0 (novel) 1 (manga) 2 (manhwa) 3 (manhua) 4 (webtoon)',
   })
-  formatType: number;
+  formatType!: number;
 
   @IsString()
   @IsNotEmpty()
   @MaxLength(10)
-  sourceLanguage: string;
+  sourceLanguage!: string;
 
-  @IsOptional()
   @IsString()
+  @IsNotEmpty()
+  @MinLength(1)
   @MaxLength(5000)
-  description?: string;
+  description!: string;
 
   @IsOptional()
   @IsUrl()

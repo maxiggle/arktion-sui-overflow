@@ -12,9 +12,9 @@ const schema = z.object({
   title: z.string().min(1, "title is required").max(255),
   formatType: z.coerce.number().int().min(0).max(4),
   sourceLanguage: z.string().min(1, "language is required").max(10),
-  description: z.string().max(5000).optional(),
+  description: z.string().min(1, "synopsis is required").max(5000),
   coverUrl: z.string().url("must be a valid URL").optional().or(z.literal("")),
-  status: z.enum(Object.values(SeriesStatus) as [SeriesStatus, ...SeriesStatus[]]),
+  status: z.literal(SeriesStatus.DRAFT),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -34,7 +34,7 @@ export default function NewSeriesPage() {
     sourceLanguage: "en",
     description: "",
     coverUrl: "",
-    status: SeriesStatus.ONGOING,
+    status: SeriesStatus.DRAFT,
   });
   const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>(
     {}
@@ -64,7 +64,6 @@ export default function NewSeriesPage() {
     const payload = {
       ...result.data,
       coverUrl: result.data.coverUrl || undefined,
-      description: result.data.description || undefined,
     };
 
     try {
@@ -148,23 +147,22 @@ export default function NewSeriesPage() {
           </div>
         </div>
 
-        {/* Status */}
+        {/* Status — locked to draft until the first chapter is published */}
         <div className="space-y-1.5">
           <label className="text-xs font-medium text-foreground" htmlFor="status">
             status
           </label>
           <select
             id="status"
-            value={form.status}
-            onChange={(e) => set("status", e.target.value as SeriesStatus)}
-            className="w-full rounded-lg border border-border/60 bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+            value={SeriesStatus.DRAFT}
+            disabled
+            className="w-full rounded-lg border border-border/60 bg-muted px-3 py-2 text-sm text-muted-foreground cursor-not-allowed"
           >
-            {Object.values(SeriesStatus).map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
+            <option value={SeriesStatus.DRAFT}>draft</option>
           </select>
+          <p className="text-xs text-muted-foreground">
+            publish a chapter first to change the status
+          </p>
         </div>
 
         {/* Cover URL */}
@@ -189,8 +187,7 @@ export default function NewSeriesPage() {
         {/* Description */}
         <div className="space-y-1.5">
           <label className="text-xs font-medium text-foreground" htmlFor="description">
-            description{" "}
-            <span className="text-muted-foreground font-normal">(optional)</span>
+            synopsis
           </label>
           <textarea
             id="description"

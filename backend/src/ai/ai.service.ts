@@ -15,7 +15,7 @@ export interface AssistResult {
 @Injectable()
 export class AiService {
   private readonly logger = new Logger(AiService.name);
-  private readonly memwal: MemWal | null = null;
+  private readonly memwal: MemWal;
   private readonly openRouterKey: string;
   private readonly model: string;
 
@@ -33,18 +33,18 @@ export class AiService {
       'meta-llama/llama-3.1-8b-instruct:free',
     );
 
-    if (memwalKey && memwalAccount) {
-      this.memwal = MemWal.create({
-        key: memwalKey,
-        accountId: memwalAccount,
-        serverUrl: memwalServer,
-      });
-      this.logger.log('MemWal client initialised');
-    } else {
-      this.logger.warn(
-        'MEMWAL_PRIVATE_KEY or MEMWAL_ACCOUNT_ID not set — AI writing assistant disabled',
+    if (!memwalKey || !memwalAccount) {
+      throw new Error(
+        'MEMWAL_PRIVATE_KEY and MEMWAL_ACCOUNT_ID are required — MemWal is the backbone of the AI writing assistant',
       );
     }
+
+    this.memwal = MemWal.create({
+      key: memwalKey,
+      accountId: memwalAccount,
+      serverUrl: memwalServer,
+    });
+    this.logger.log('MemWal client initialised');
 
     if (this.openRouterKey) {
       this.logger.log(`OpenRouter client ready (model: ${this.model})`);
@@ -56,7 +56,7 @@ export class AiService {
   }
 
   get isReady(): boolean {
-    return !!this.openRouterKey;
+    return !!this.openRouterKey && !!this.memwal;
   }
 
   /** Namespace per series so each series has its own isolated memory bucket. */
@@ -123,19 +123,16 @@ export class AiService {
       );
     }
 
-    // Best-effort MemWal recall — never throws, just returns empty on failure.
     let memories: Array<{ content?: string; text?: string }> = [];
-    if (this.memwal) {
-      try {
-        const recalled = await this.memwal.recall({
-          query: prompt,
-          namespace: this.namespace(seriesId),
-          limit: 6,
-        });
-        memories = recalled.results ?? [];
-      } catch (err) {
-        this.logger.warn(`MemWal recall failed (non-fatal): ${String(err)}`);
-      }
+    try {
+      const recalled = await this.memwal.recall({
+        query: prompt,
+        namespace: this.namespace(seriesId),
+        limit: 6,
+      });
+      memories = recalled.results ?? [];
+    } catch (err) {
+      this.logger.warn(`MemWal recall failed: ${String(err)}`);
     }
 
     const systemParts = [

@@ -1,0 +1,73 @@
+---
+title: "Architecture"
+description: "Stack, data flow, smart contracts, and the reasoning behind choosing Sui."
+---
+
+## Stack
+
+| Layer        | Technology                                                               |
+| ------------ | ------------------------------------------------------------------------ |
+| Frontend     | Next.js 16 (App Router), TypeScript, Tailwind CSS v4, Zustand, shadcn/ui |
+| Backend      | NestJS, Prisma, PostgreSQL                                               |
+| Auth         | Sui zkLogin (Google OAuth → invisible wallet)                            |
+| Blockchain   | Sui testnet, Move smart contracts                                        |
+| Blob Storage | Walrus (decentralized, content-addressed)                                |
+| AI           | OpenRouter API + MemWal (Walrus Memory)                                  |
+| Payments     | USDC on Sui (Transak on/off-ramp in Phase 2)                             |
+
+## How It Fits Together
+
+```
+Next.js (port 3001)
+    ↓ REST /api/v1
+NestJS (port 3000)
+    ↓ Prisma          ↓ Sui SDK
+PostgreSQL         Sui testnet
+                       ↕
+                    Walrus
+```
+
+The backend is the sole point of contact with the blockchain. The frontend never constructs or signs transactions — NestJS constructs, sponsors, and submits every Sui PTB on behalf of the user.
+
+## Frontend Structure
+
+```
+lib/types/     Entity interfaces — single source of truth, no runtime code
+lib/api/       Typed async functions — pure HTTP, no state
+stores/        Zustand stores — state + actions, calls lib/api/
+components/    Presentational UI — receives props or calls stores
+app/           Next.js pages — compose stores and components only
+```
+
+## Three-Layer Currency
+
+**USDC** — all creator payments: tips, chapter purchases, bounty pools. Always shown as dollar amounts, never as crypto. Loaded via Transak on-ramp (Phase 2).
+
+**INK** — platform engagement token. Earned only through reading; never purchasable. 10 INK per chapter milestone, 100 INK per series completed, 50 INK for an approved submission. Used for DAO voting weight, and (Phase 3) gacha burns and prediction market stakes. Closed-loop at launch; DEX trading requires community governance vote.
+
+**ArktionPassport** — soul-bound NFT that is the reader's on-chain identity. It accumulates reader level, lifetime INK earned, chapters read, series completed, and badge references. Level is determined by lifetime INK earned (never by current balance). The passport image is a dynamically generated SVG that updates to reflect the reader's current level and colour theme — visible directly on Sui explorers and NFT marketplaces without any additional metadata service.
+
+## Smart Contracts (8 Modules, Sui Testnet)
+
+| Module                     | Description                                                                                         |
+| -------------------------- | --------------------------------------------------------------------------------------------------- |
+| `arktion::admin`           | Admin capability and platform governance controls                                                   |
+| `arktion::ink`             | Fungible INK token; TreasuryCap held by NestJS, closed-loop at launch                               |
+| `arktion::ink_earning`     | Controlled minting gate; all earning triggers defined here; idempotency keys prevent double-minting |
+| `arktion::passport`        | Soul-bound ArktionPassport NFT; non-transferable at Move type level                                 |
+| `arktion::reading_history` | On-chain reading record anchor; full history archived to Walrus                                     |
+| `arktion::journal`         | External series entries stored on-chain for portability                                             |
+| `arktion::submission`      | Community series suggestion registry; approval triggers INK reward + Contributor badge              |
+| `arktion::badges`          | Soul-bound credential NFTs for reading achievements and community contributions                     |
+
+## Why Sui
+
+**zkLogin** — the only production-ready invisible wallet. Users sign in with Google and receive a Sui wallet with no seed phrase and no crypto UX.
+
+**Sponsored transactions** — NestJS sponsors the transactions that require it: passport minting and INK minting/transfers. USDC transfers are free on Sui and need no sponsorship.
+
+**Move's type system** — soul-bound badges are non-transferable because the Move type system enforces it at the language level, not as a policy check.
+
+**400ms finality** — sub-second confirmation makes the tipping UX feel instant.
+
+**Walrus** — Sui's native decentralized blob storage gives content-addressed permanence to chapter content, badge metadata, and reading history snapshots. Content survives even if Arktion's servers disappear.

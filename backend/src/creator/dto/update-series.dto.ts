@@ -1,5 +1,6 @@
 import {
   IsEnum,
+  IsNotEmpty,
   IsOptional,
   IsString,
   IsUrl,
@@ -26,6 +27,7 @@ export class UpdateSeriesDto {
 
   @IsOptional()
   @IsString()
+  @IsNotEmpty()
   @MaxLength(5000)
   description?: string;
 
