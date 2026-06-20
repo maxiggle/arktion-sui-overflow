@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '../../generated/prisma/client';
 import { toSkipTake } from '../common/pagination';
 
 export const FormatType = {
@@ -75,7 +76,7 @@ export class SeriesService {
     const { formatType, status, search, page, limit } = params;
     const { skip, take } = toSkipTake(page, limit);
 
-    const where = {
+    const where: Prisma.SeriesWhereInput = {
       deletedAt: null,
       // Draft series are never visible on the public explore page.
       // If a specific non-draft status is requested, honour it; otherwise exclude drafts.
@@ -84,6 +85,11 @@ export class SeriesService {
       ...(search && {
         title: { contains: search, mode: 'insensitive' as const },
       }),
+      // Hide series with no readable content. Externally sourced series
+      // (creatorId null) sync their chapters lazily, so their chapter rows may
+      // not exist yet — treat them as having chapters. Creator-owned series
+      // must have at least one live chapter to appear.
+      OR: [{ creatorId: null }, { chapters: { some: { deletedAt: null } } }],
     };
 
     const [series, total] = await Promise.all([
