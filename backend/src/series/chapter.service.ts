@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
@@ -7,9 +8,10 @@ import {
 
 import { PrismaService } from '../prisma/prisma.service';
 import {
-  MangaDexAdapter,
-  type MangaDexPage,
-} from './adapters/mangadex.adapter';
+  CONTENT_SOURCE_ADAPTER,
+  type ContentSourceAdapter,
+  type SourcePage,
+} from './adapters/content-source.adapter';
 
 export interface ChapterDto {
   id: string;
@@ -53,7 +55,8 @@ export class ChapterService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly mangadex: MangaDexAdapter,
+    @Inject(CONTENT_SOURCE_ADAPTER)
+    private readonly contentSource: ContentSourceAdapter,
   ) {}
 
   /**
@@ -73,7 +76,7 @@ export class ChapterService {
     });
     if (!series) throw new NotFoundException('Series not found');
 
-    // Creator-published series have no externalId — skip MangaDex entirely.
+    // Creator-published series have no externalId — skip the external source.
     if (series.externalId) {
       const isStale =
         !series.chaptersSyncedAt ||
@@ -84,13 +87,13 @@ export class ChapterService {
           where: { seriesId, language, deletedAt: null },
         });
 
-        const syncPromise = this.syncFromMangaDex(
+        const syncPromise = this.syncFromSource(
           series.id,
           series.externalId,
           language,
         ).catch((err: Error) => {
           this.logger.warn(
-            `MangaDex sync failed for series=${seriesId} (${series.externalId}): ${err.message}. Falling back to cache.`,
+            `Content source sync failed for series=${seriesId} (${series.externalId}): ${err.message}. Falling back to cache.`,
           );
         });
 
@@ -132,13 +135,13 @@ export class ChapterService {
     }
 
     if (chapter.externalId) {
-      // MangaDex-sourced — live fetch, never cached.
-      const pages: MangaDexPage[] = await this.mangadex.getPages(
+      // Externally sourced — live fetch, never cached.
+      const pages: SourcePage[] = await this.contentSource.getPages(
         chapter.externalId,
         dataSaver,
       );
 
-      // Opportunistically update pageCount if MangaDex now reports a different
+      // Opportunistically update pageCount if the source now reports a different
       // number than what we have stored (some entries change after publication).
       if (pages.length !== chapter.pageCount) {
         await this.prisma.chapter
@@ -165,19 +168,19 @@ export class ChapterService {
   }
 
   /**
-   * Pull the chapter feed from MangaDex and upsert into Postgres.
-   * Idempotent on (seriesId, language, chapterNumber).
+   * Pull the chapter feed from the external content source and upsert into
+   * Postgres. Idempotent on (seriesId, language, chapterNumber).
    */
-  private async syncFromMangaDex(
+  private async syncFromSource(
     seriesId: string,
-    mangaExternalId: string,
+    sourceExternalId: string,
     language: string,
   ): Promise<void> {
     this.logger.log(
-      `Syncing chapters from MangaDex: series=${seriesId} lang=${language}`,
+      `Syncing chapters from ${this.contentSource.sourceId}: series=${seriesId} lang=${language}`,
     );
-    const upstream = await this.mangadex.listChapters(
-      mangaExternalId,
+    const upstream = await this.contentSource.listChapters(
+      sourceExternalId,
       language,
     );
 
@@ -210,7 +213,7 @@ export class ChapterService {
         });
       } catch (err) {
         this.logger.warn(
-          `Skipping chapter ${c.chapterNumber} of ${mangaExternalId}: ${(err as Error).message}`,
+          `Skipping chapter ${c.chapterNumber} of ${sourceExternalId}: ${(err as Error).message}`,
         );
       }
     }

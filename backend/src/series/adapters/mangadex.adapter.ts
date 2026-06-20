@@ -1,7 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 
+import type {
+  ContentSourceAdapter,
+  SourceChapter,
+  SourcePage,
+} from './content-source.adapter';
+
 /**
- * MangaDex public API adapter.
+ * MangaDex public API adapter — one implementation of ContentSourceAdapter.
  *
  * Phase 1 reads ONLY — we don't write back to MangaDex. Two methods:
  *   - listChapters(): chapter metadata for a series, used by ChapterService to
@@ -18,24 +24,6 @@ const USER_AGENT = 'Arktion/1.0 (hackathon demo; contact@arktion.app)';
 
 /** Abort a single MangaDex request if it takes longer than this. */
 const FETCH_TIMEOUT_MS = 8_000;
-
-export interface MangaDexChapter {
-  /** MangaDex chapter UUID — stored as Chapter.externalId. */
-  externalId: string;
-  /** Numeric chapter; may be fractional (e.g. 1.5 for side stories). */
-  chapterNumber: number;
-  title: string | null;
-  /** Translation language. ISO 639-1. */
-  language: string;
-  /** Page count reported by MangaDex. May be 0 if unknown until pages are fetched. */
-  pageCount: number;
-  publishedAt: Date | null;
-}
-
-export interface MangaDexPage {
-  pageNumber: number;
-  imageUrl: string;
-}
 
 interface MangaDexFeedResponse {
   data: Array<{
@@ -63,8 +51,10 @@ interface MangaDexAtHomeResponse {
 }
 
 @Injectable()
-export class MangaDexAdapter {
+export class MangaDexAdapter implements ContentSourceAdapter {
   private readonly logger = new Logger(MangaDexAdapter.name);
+
+  readonly sourceId = 'mangadex';
 
   /**
    * Paginated chapter feed for a manga.
@@ -78,8 +68,8 @@ export class MangaDexAdapter {
     mangaExternalId: string,
     language = 'en',
     limit = 500,
-  ): Promise<MangaDexChapter[]> {
-    const out: MangaDexChapter[] = [];
+  ): Promise<SourceChapter[]> {
+    const out: SourceChapter[] = [];
     let offset = 0;
     let total = Infinity;
 
@@ -136,7 +126,7 @@ export class MangaDexAdapter {
 
     // MangaDex sometimes returns the same chapter number from multiple scanlation
     // groups. Dedupe by chapterNumber, keeping the earliest publishAt.
-    const byNumber = new Map<number, MangaDexChapter>();
+    const byNumber = new Map<number, SourceChapter>();
     for (const c of out) {
       const existing = byNumber.get(c.chapterNumber);
       if (
@@ -164,7 +154,7 @@ export class MangaDexAdapter {
   async getPages(
     chapterExternalId: string,
     dataSaver = false,
-  ): Promise<MangaDexPage[]> {
+  ): Promise<SourcePage[]> {
     const url = `${MANGADEX_BASE}/at-home/server/${chapterExternalId}`;
     const res = await fetch(url, {
       headers: { 'User-Agent': USER_AGENT },
