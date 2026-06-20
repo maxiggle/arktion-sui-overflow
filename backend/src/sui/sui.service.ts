@@ -22,6 +22,10 @@ export class SuiService implements OnModuleInit {
   readonly adminKeypair: Ed25519Keypair;
   readonly gasKeypair: Ed25519Keypair;
 
+  /** Sui addresses derived once from the keypairs at startup. */
+  readonly adminAddress: string;
+  readonly gasAddress: string;
+
   readonly packageId: string;
   readonly adminCapId: string;
   readonly adminRegistryId: string;
@@ -43,44 +47,38 @@ export class SuiService implements OnModuleInit {
 
     this.adminKeypair = this.loadKeypair('ADMIN_SECRET_KEY');
     this.gasKeypair = this.loadKeypair('GAS_SPONSOR_SECRET_KEY');
+    this.adminAddress = this.adminKeypair.toSuiAddress();
+    this.gasAddress = this.gasKeypair.toSuiAddress();
 
-    this.packageId = this.requireConfig('SUI_PACKAGE_ID');
-    this.adminCapId = this.requireConfig('SUI_ADMIN_CAP_ID');
-    this.adminRegistryId = this.requireConfig('SUI_ADMIN_REGISTRY_ID');
-    this.inkTreasuryCapId = this.requireConfig('SUI_INK_TREASURY_CAP_ID');
-    this.earningRegistryId = this.requireConfig('SUI_EARNING_REGISTRY_ID');
-    this.badgeRegistryId = this.requireConfig('SUI_BADGE_REGISTRY_ID');
-    this.usdcCoinType = this.requireConfig('SUI_USDC_COIN_TYPE');
+    this.packageId = this.config.getOrThrow<string>('SUI_PACKAGE_ID');
+    this.adminCapId = this.config.getOrThrow<string>('SUI_ADMIN_CAP_ID');
+    this.adminRegistryId =
+      this.config.getOrThrow<string>('SUI_ADMIN_REGISTRY_ID');
+    this.inkTreasuryCapId =
+      this.config.getOrThrow<string>('SUI_INK_TREASURY_CAP_ID');
+    this.earningRegistryId =
+      this.config.getOrThrow<string>('SUI_EARNING_REGISTRY_ID');
+    this.badgeRegistryId =
+      this.config.getOrThrow<string>('SUI_BADGE_REGISTRY_ID');
+    this.usdcCoinType = this.config.getOrThrow<string>('SUI_USDC_COIN_TYPE');
   }
 
   async onModuleInit(): Promise<void> {
-    const adminAddress = this.adminKeypair.toSuiAddress();
-    const gasAddress = this.gasKeypair.toSuiAddress();
-
     try {
       const val = await this.client.getReferenceGasPrice();
       this.logger.log(
         `Connected to Sui (${this.network}) at gas price ${val.referenceGasPrice}`,
       );
-      this.logger.log(`Admin address:  ${adminAddress}`);
-      this.logger.log(`Gas sponsor:    ${gasAddress}`);
+      this.logger.log(`Admin address:  ${this.adminAddress}`);
+      this.logger.log(`Gas sponsor:    ${this.gasAddress}`);
     } catch (err) {
       this.logger.error('Failed to reach Sui fullnode', err);
       throw err;
     }
   }
 
-  /** Convenience: Sui address derived from the admin keypair. */
-  get adminAddress(): string {
-    return this.adminKeypair.toSuiAddress();
-  }
-
-  get gasAddress(): string {
-    return this.gasKeypair.toSuiAddress();
-  }
-
   private loadKeypair(envKey: string): Ed25519Keypair {
-    const raw = this.requireConfig(envKey);
+    const raw = this.config.getOrThrow<string>(envKey);
     try {
       const { scheme, secretKey } = decodeSuiPrivateKey(raw);
       if (scheme !== 'ED25519') {
@@ -95,13 +93,5 @@ export class SuiService implements OnModuleInit {
           `Expected bech32 format (suiprivkey1...). Export with: sui keytool export <address>`,
       );
     }
-  }
-
-  private requireConfig(key: string): string {
-    const v = this.config.get<string>(key);
-    if (!v) {
-      throw new Error(`Missing required env: ${key}`);
-    }
-    return v;
   }
 }

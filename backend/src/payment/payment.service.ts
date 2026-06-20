@@ -11,6 +11,7 @@ import type { SuiClientTypes } from '@mysten/sui/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { SuiService } from '../sui/sui.service';
+import { toSkipTake } from '../common/pagination';
 
 /** Minimum tip: 0.01 USDC (10_000 micro-USDC). Prevents dust transactions. */
 const MIN_TIP_USDC = 10_000n;
@@ -496,14 +497,14 @@ export class PaymentService {
 
   /** Paginated send history for a user. */
   async getSendHistory(userId: string, page: number, limit: number) {
-    const skip = (page - 1) * limit;
+    const { skip, take } = toSkipTake(page, limit);
 
     const [sends, total] = await Promise.all([
       this.prisma.sendTransaction.findMany({
         where: { senderId: userId },
         orderBy: { createdAt: 'desc' },
         skip,
-        take: limit,
+        take,
         select: {
           id: true,
           recipientAddress: true,
@@ -534,14 +535,14 @@ export class PaymentService {
   ) {
     const where =
       direction === 'sent' ? { senderId: userId } : { receiverId: userId };
-    const skip = (page - 1) * limit;
+    const { skip, take } = toSkipTake(page, limit);
 
     const [tips, total] = await Promise.all([
       this.prisma.tipTransaction.findMany({
         where,
         orderBy: { createdAt: 'desc' },
         skip,
-        take: limit,
+        take,
         select: {
           id: true,
           amountUsdc: true,

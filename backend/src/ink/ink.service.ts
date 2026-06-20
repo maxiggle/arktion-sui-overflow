@@ -4,6 +4,7 @@ import { Transaction } from '@mysten/sui/transactions';
 import { PrismaService } from '../prisma/prisma.service';
 import { SuiService } from '../sui/sui.service';
 import { GasService } from '../sui/gas.service';
+import { toSkipTake } from '../common/pagination';
 
 /**
  * Maps to the trigger constants in arktion::ink_earning.
@@ -226,14 +227,14 @@ export class InkService {
     page: number,
     limit: number,
   ): Promise<InkLedgerPage> {
-    const skip = (page - 1) * limit;
+    const { skip, take } = toSkipTake(page, limit);
 
     const [entries, total] = await Promise.all([
       this.prisma.inkLedgerEntry.findMany({
         where: { userId },
         orderBy: { createdAt: 'desc' },
         skip,
-        take: limit,
+        take,
       }),
       this.prisma.inkLedgerEntry.count({ where: { userId } }),
     ]);
