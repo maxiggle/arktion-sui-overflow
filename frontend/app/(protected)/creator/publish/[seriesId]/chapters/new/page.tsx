@@ -296,9 +296,7 @@ export default function NewChapterPage() {
         {/* Main editor area */}
         <div className="flex-1 min-w-0 overflow-y-auto">
           {!series ? (
-            <div className="flex justify-center py-16">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground/40" />
-            </div>
+            <div className="flex justify-center py-16"></div>
           ) : (
             <form onSubmit={handleSubmit} className="p-5 space-y-5 max-w-3xl">
               {/* Chapter number + title */}

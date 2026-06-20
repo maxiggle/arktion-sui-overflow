@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -9,8 +9,6 @@ import { ArrowLeft, CheckCircle2, Loader2, AlertCircle } from "lucide-react";
 import { useSeriesStore } from "@/stores/series.store";
 import { usePaymentStore } from "@/stores/payment.store";
 import { getZkState } from "@/lib/zklogin";
-
-// ─── Validation ───────────────────────────────────────────────────────────────
 
 const TipSchema = z.object({
   amount: z
@@ -30,13 +28,13 @@ function toMicroUsdc(usdc: string): string {
   return BigInt(whole + padded).toString();
 }
 
-function makeIdempotencyKey(seriesId: string): string {
-  return `tip:${seriesId}:${Date.now()}`;
+function makeIdempotencyKey(): string {
+  return globalThis.crypto?.randomUUID
+    ? globalThis.crypto.randomUUID()
+    : `tip-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 const PRESETS = ["0.50", "1.00", "2.00", "5.00"];
-
-// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function TipPage() {
   const params = useParams<{ seriesId: string }>();
@@ -49,6 +47,11 @@ export default function TipPage() {
   const [amount, setAmount] = useState("");
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [zkMissing, setZkMissing] = useState(false);
+
+  // Stable for one tip attempt so a retry after a signing failure reuses the
+  // same pending row server-side. Cleared whenever the amount changes or a tip
+  // succeeds, so a genuinely new tip always gets a fresh key.
+  const idempotencyKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     fetchSeriesById(params.seriesId);
@@ -74,6 +77,7 @@ export default function TipPage() {
   function handlePreset(preset: string) {
     setAmount(preset);
     setFieldError(null);
+    idempotencyKeyRef.current = null;
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -86,14 +90,22 @@ export default function TipPage() {
       return;
     }
 
+    if (!idempotencyKeyRef.current) {
+      idempotencyKeyRef.current = makeIdempotencyKey();
+    }
+
     await sendTip({
       seriesId: params.seriesId,
       amountUsdc: toMicroUsdc(amount),
-      idempotencyKey: makeIdempotencyKey(params.seriesId),
+      idempotencyKey: idempotencyKeyRef.current,
     });
+
+    // Next submit is a new logical tip — force a fresh key.
+    if (usePaymentStore.getState().stage === "success") {
+      idempotencyKeyRef.current = null;
+    }
   }
 
-  // ── Loading ─────────────────────────────────────────────────────────────────
   if (detailLoading || !series) {
     return (
       <div className="flex flex-1 items-center justify-center min-h-[60vh]">
@@ -102,14 +114,10 @@ export default function TipPage() {
     );
   }
 
-  // ── Success ─────────────────────────────────────────────────────────────────
   if (stage === "success" && txDigest) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-6 py-24 text-center">
-        <CheckCircle2
-          className="h-16 w-16 text-green-500"
-          strokeWidth={1.5}
-        />
+        <CheckCircle2 className="h-16 w-16 text-green-500" strokeWidth={1.5} />
         <div>
           <p className="text-xl font-semibold">Tip sent!</p>
           <p className="text-sm text-muted-foreground mt-1">
@@ -129,6 +137,7 @@ export default function TipPage() {
             onClick={() => {
               reset();
               setAmount("");
+              idempotencyKeyRef.current = null;
             }}
             className="rounded-lg border border-border px-4 py-2 text-sm hover:bg-muted transition-colors"
           >
@@ -145,7 +154,6 @@ export default function TipPage() {
     );
   }
 
-  // ── Form ────────────────────────────────────────────────────────────────────
   return (
     <div className="mx-auto max-w-md px-4 py-10">
       <button
@@ -169,7 +177,9 @@ export default function TipPage() {
           <div className="h-20 w-14 rounded-md bg-muted flex-shrink-0" />
         )}
         <div>
-          <p className="text-xs text-muted-foreground mb-1">Tipping creator of</p>
+          <p className="text-xs text-muted-foreground mb-1">
+            Tipping creator of
+          </p>
           <h1 className="text-lg font-semibold leading-snug">{series.title}</h1>
         </div>
       </div>
@@ -232,6 +242,7 @@ export default function TipPage() {
               onChange={(e) => {
                 setAmount(e.target.value);
                 setFieldError(null);
+                idempotencyKeyRef.current = null;
               }}
               disabled={isSubmitting}
               className="w-full rounded-xl border border-border bg-card pl-8 pr-4 py-3 text-sm

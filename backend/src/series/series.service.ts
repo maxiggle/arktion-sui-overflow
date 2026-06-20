@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { toSkipTake } from '../common/pagination';
 
 export const FormatType = {
   NOVEL: 0,
@@ -72,7 +73,7 @@ export class SeriesService {
     limit: number;
   }): Promise<SeriesPage> {
     const { formatType, status, search, page, limit } = params;
-    const skip = (page - 1) * limit;
+    const { skip, take } = toSkipTake(page, limit);
 
     const where = {
       deletedAt: null,
@@ -90,7 +91,7 @@ export class SeriesService {
         where,
         orderBy: { createdAt: 'desc' },
         skip,
-        take: limit,
+        take,
         select: {
           id: true,
           externalId: true,

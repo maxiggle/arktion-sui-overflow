@@ -74,6 +74,8 @@ export class AiService {
     title: string | null,
     content: string,
   ): Promise<void> {
+    if (!this.memwal) return;
+
     const label = title
       ? `Chapter ${chapterNumber}: ${title}`
       : `Chapter ${chapterNumber}`;

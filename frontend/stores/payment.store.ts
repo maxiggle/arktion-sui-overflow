@@ -52,6 +52,7 @@ interface PaymentState {
   executeSend: (params: {
     recipientAddress: string;
     amountUsdc: string;
+    idempotencyKey: string;
   }) => Promise<void>;
 
   resetSend: () => void;
@@ -148,12 +149,10 @@ export const usePaymentStore = create<PaymentState>((set) => ({
     }
   },
 
-  executeSend: async ({ recipientAddress, amountUsdc }) => {
+  executeSend: async ({ recipientAddress, amountUsdc, idempotencyKey }) => {
     set({ sendStage: "building", sendError: null, sendTxDigest: null });
-    console.log("[executeSend] called", { recipientAddress, amountUsdc });
     try {
       const zkState = getZkState();
-      console.log("[executeSend] zkState present:", !!zkState, "maxEpoch:", zkState?.maxEpoch);
       if (!zkState) {
         set({
           sendStage: "error",
@@ -173,7 +172,11 @@ export const usePaymentStore = create<PaymentState>((set) => ({
         return;
       }
 
-      const { txBytes } = await buildSend({ recipientAddress, amountUsdc });
+      const { sendTransactionId, txBytes } = await buildSend({
+        recipientAddress,
+        amountUsdc,
+        idempotencyKey,
+      });
 
       set({ sendStage: "signing" });
 
@@ -182,7 +185,11 @@ export const usePaymentStore = create<PaymentState>((set) => ({
 
       set({ sendStage: "confirming" });
 
-      const { txDigest } = await submitSend({ txBytes, userSignature });
+      const { txDigest } = await submitSend({
+        sendTransactionId,
+        txBytes,
+        userSignature,
+      });
 
       set({ sendStage: "success", sendTxDigest: txDigest });
     } catch (err) {

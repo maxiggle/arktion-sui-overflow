@@ -6,6 +6,7 @@ import type {
   UsdcBalanceResponse,
   BuildSendResponse,
   SubmitSendResponse,
+  SendHistoryPage,
 } from "@/lib/types/payment";
 
 export async function buildTip(params: {
@@ -53,6 +54,7 @@ export async function getUsdcBalance(): Promise<UsdcBalanceResponse> {
 export async function buildSend(params: {
   recipientAddress: string;
   amountUsdc: string;
+  idempotencyKey: string;
 }): Promise<BuildSendResponse> {
   const { data } = await apiClient.post<BuildSendResponse>(
     "/payment/send/build",
@@ -62,6 +64,7 @@ export async function buildSend(params: {
 }
 
 export async function submitSend(params: {
+  sendTransactionId: string;
   txBytes: string;
   userSignature: string;
 }): Promise<SubmitSendResponse> {
@@ -69,5 +72,15 @@ export async function submitSend(params: {
     "/payment/send/submit",
     params,
   );
+  return data;
+}
+
+export async function getSendHistory(
+  page = 1,
+  limit = 20,
+): Promise<SendHistoryPage> {
+  const { data } = await apiClient.get<SendHistoryPage>("/payment/sends", {
+    params: { page, limit },
+  });
   return data;
 }

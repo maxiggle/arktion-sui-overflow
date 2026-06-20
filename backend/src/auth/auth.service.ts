@@ -276,9 +276,6 @@ export class AuthService {
     const response = await this.sui.client.core.listOwnedObjects({
       owner: walletAddress,
     });
-    for (const obj of response.objects) {
-      console.log(obj.objectId, obj.type);
-    }
 
     const findBySuffix = (suffix: string): string | undefined =>
       response.objects.find((o) => o.type?.endsWith(suffix))?.objectId;
