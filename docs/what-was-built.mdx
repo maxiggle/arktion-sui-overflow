@@ -15,9 +15,10 @@ description: "Phase 1 hackathon scope — everything shipped for Sui Overflow 20
 
 ## Reading
 
-- **Reading library** — track progress across all series with statuses: Reading, Completed, On-Hold, Dropped, Plan to Read.
+- **Automatic progress tracking** — progress is recorded as you read. Finishing a chapter (scroll-to-end) advances your position, and finishing the last chapter of a completed series marks it done — no manual "mark as read." Progress only ever moves forward, so re-reading never regresses your history.
+- **Reading library** — every series you read is tracked with statuses: Reading, Completed, On-Hold, Dropped, Plan to Read.
 - **Format-aware reader** — vertical scroll for manhwa/webtoon, paginated for manga/manhua, markdown renderer for novels.
-- **MangaDex integration** — 10,000+ series available at launch via API adapter.
+- **Pluggable content sources** — series are served through a `ContentSourceAdapter` abstraction; MangaDex (10,000+ series) is the first source, and creator-uploaded chapters are served the same way.
 - **External journal** — track series on other platforms stored on-chain for portability.
 - **Reading history page** — full log of chapters read across all series.
 
@@ -46,8 +47,10 @@ description: "Phase 1 hackathon scope — everything shipped for Sui Overflow 20
 
 ## Admin
 
-- **Admin dashboard** — REVIEWER and MODERATOR roles with TOTP, audit-logged actions, user management, content reports, and on-chain contract monitoring.
-- **Four-eyes principle** — admin role assignment requires confirmation from a second admin.
+- **Admin dashboard** — three ranked roles (Super Admin, Moderator, Reviewer) with mandatory TOTP, audit-logged actions, user management, content reports, and on-chain contract monitoring.
+- **Hardened admin auth** — bcrypt password hashing, login lockout after repeated failures, AES-256-GCM-encrypted TOTP secrets, single-use backup codes, and stateful refresh-token sessions that can be revoked instantly.
+- **Four-eyes principle** — a role change is a two-step request/approve flow: one admin proposes it, a *different* admin must approve before it takes effect. Every step is audit-logged.
+- See [Security & Trust](/security) for the full auth, session, and transaction-integrity model.
 
 ## Infrastructure
 
