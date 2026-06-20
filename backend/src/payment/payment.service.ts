@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
@@ -13,6 +14,16 @@ import { SuiService } from '../sui/sui.service';
 
 /** Minimum tip: 0.01 USDC (10_000 micro-USDC). Prevents dust transactions. */
 const MIN_TIP_USDC = 10_000n;
+
+/** Prisma raises P2002 when a unique constraint (here, idempotency_key) is violated. */
+function isUniqueConstraintError(err: unknown): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'code' in err &&
+    (err as { code?: unknown }).code === 'P2002'
+  );
+}
 
 /** TipTransaction.status values. */
 export const TipStatus = {
@@ -57,6 +68,35 @@ export class PaymentService {
       throw new BadRequestException(
         `Minimum tip is ${MIN_TIP_USDC} micro-USDC (0.01 USDC).`,
       );
+    }
+
+    // Idempotent retry: a repeated key may only rebuild a still-pending tip
+    // with identical parameters. Anything else is a client error.
+    const existing = await this.prisma.tipTransaction.findUnique({
+      where: { idempotencyKey },
+      select: {
+        id: true,
+        senderId: true,
+        seriesId: true,
+        amountUsdc: true,
+        status: true,
+      },
+    });
+    if (existing) {
+      const sameParams =
+        existing.senderId === senderId &&
+        existing.seriesId === seriesId &&
+        existing.amountUsdc === amountUsdc;
+      if (!sameParams) {
+        throw new ConflictException(
+          'Idempotency key already used with different tip parameters.',
+        );
+      }
+      if (existing.status !== TipStatus.PENDING) {
+        throw new ConflictException(
+          'A tip with this idempotency key has already been processed.',
+        );
+      }
     }
 
     const [sender, series] = await Promise.all([
@@ -113,17 +153,36 @@ export class PaymentService {
     const bytes = await tx.build({ client: this.sui.client });
     const txBytes = Buffer.from(bytes).toString('base64');
 
-    const tipTx = await this.prisma.tipTransaction.create({
-      data: {
-        senderId,
-        receiverId: series.creator.id,
-        seriesId,
-        amountUsdc,
-        idempotencyKey,
-        status: TipStatus.PENDING,
-      },
-      select: { id: true },
-    });
+    // Pending retry — reuse the original row, return freshly built bytes.
+    if (existing) {
+      return { tipTransactionId: existing.id, txBytes };
+    }
+
+    let tipTx: { id: string };
+    try {
+      tipTx = await this.prisma.tipTransaction.create({
+        data: {
+          senderId,
+          receiverId: series.creator.id,
+          seriesId,
+          amountUsdc,
+          idempotencyKey,
+          status: TipStatus.PENDING,
+        },
+        select: { id: true },
+      });
+    } catch (err) {
+      // A concurrent request with the same key won the unique constraint —
+      // return that row instead of failing the retry.
+      if (isUniqueConstraintError(err)) {
+        const raced = await this.prisma.tipTransaction.findUnique({
+          where: { idempotencyKey },
+          select: { id: true },
+        });
+        if (raced) return { tipTransactionId: raced.id, txBytes };
+      }
+      throw err;
+    }
 
     this.logger.log(
       `Tip built (gasless): sender=${senderId} series=${seriesId} ` +
