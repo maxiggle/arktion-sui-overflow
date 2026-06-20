@@ -6,8 +6,8 @@ import {
   HttpStatus,
   Param,
   ParseUUIDPipe,
-  Patch,
   Post,
+  Query,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
@@ -20,7 +20,9 @@ import { AuditLogInterceptor } from '../interceptors/audit-log.interceptor';
 import { AdminRole } from '../types/admin-role.enum';
 import type { AuthenticatedAdmin } from '../types/authenticated-admin.type';
 import { CreateAdminUserDto } from './dto/create-admin-user.dto';
-import { UpdateAdminRoleDto } from './dto/update-admin-role.dto';
+import { RequestRoleChangeDto } from './dto/request-role-change.dto';
+import { ReviewRoleChangeDto } from './dto/review-role-change.dto';
+import type { RoleChangeStatus } from './dto/role-change-request.dto';
 import { AdminUsersService } from './admin-users.service';
 
 @Controller('admin/users')
@@ -36,6 +38,13 @@ export class AdminUsersController {
     return this.usersService.findAll();
   }
 
+  // Literal route — must precede `:id` so it isn't captured as a user id.
+  @Get('role-change-requests')
+  @HttpCode(HttpStatus.OK)
+  listRoleChangeRequests(@Query('status') status?: RoleChangeStatus) {
+    return this.usersService.listRoleChangeRequests(status);
+  }
+
   @Get(':id')
   @HttpCode(HttpStatus.OK)
   findOne(@Param('id', ParseUUIDPipe) id: string) {
@@ -49,17 +58,53 @@ export class AdminUsersController {
     return this.usersService.create(dto);
   }
 
-  @Patch(':id/role')
-  @HttpCode(HttpStatus.OK)
-  @AuditLog({ actionType: 'ADMIN_USER_ROLE_UPDATE', targetType: 'AdminUser' })
-  async updateRole(
+  /**
+   * Four-eyes step 1 — request a role change. Does not take effect until a
+   * different admin approves it.
+   */
+  @Post(':id/role-change-requests')
+  @HttpCode(HttpStatus.CREATED)
+  @AuditLog({
+    actionType: 'ADMIN_ROLE_CHANGE_REQUEST',
+    targetType: 'AdminUser',
+  })
+  async requestRoleChange(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: UpdateAdminRoleDto,
+    @Body() dto: RequestRoleChangeDto,
     @CurrentAdmin() admin: AuthenticatedAdmin,
   ) {
     const target = await this.usersService.findById(id);
     this.usersService.assertCanManage(admin.role, target.role);
-    return this.usersService.updateRole(id, dto, admin.id);
+    return this.usersService.requestRoleChange(id, dto, admin.id);
+  }
+
+  /** Four-eyes step 2 — a different admin approves and applies the change. */
+  @Post('role-change-requests/:requestId/approve')
+  @HttpCode(HttpStatus.OK)
+  @AuditLog({
+    actionType: 'ADMIN_ROLE_CHANGE_APPROVE',
+    targetType: 'AdminRoleChangeRequest',
+  })
+  async approveRoleChange(
+    @Param('requestId', ParseUUIDPipe) requestId: string,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
+    return this.usersService.approveRoleChange(requestId, admin.id);
+  }
+
+  /** Reject (or cancel, if you are the requester) a pending role change. */
+  @Post('role-change-requests/:requestId/reject')
+  @HttpCode(HttpStatus.OK)
+  @AuditLog({
+    actionType: 'ADMIN_ROLE_CHANGE_REJECT',
+    targetType: 'AdminRoleChangeRequest',
+  })
+  async rejectRoleChange(
+    @Param('requestId', ParseUUIDPipe) requestId: string,
+    @Body() dto: ReviewRoleChangeDto,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
+    return this.usersService.rejectRoleChange(requestId, admin.id, dto.reason);
   }
 
   @Post(':id/deactivate')
