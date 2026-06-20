@@ -52,14 +52,18 @@ export class SuiService implements OnModuleInit {
 
     this.packageId = this.config.getOrThrow<string>('SUI_PACKAGE_ID');
     this.adminCapId = this.config.getOrThrow<string>('SUI_ADMIN_CAP_ID');
-    this.adminRegistryId =
-      this.config.getOrThrow<string>('SUI_ADMIN_REGISTRY_ID');
-    this.inkTreasuryCapId =
-      this.config.getOrThrow<string>('SUI_INK_TREASURY_CAP_ID');
-    this.earningRegistryId =
-      this.config.getOrThrow<string>('SUI_EARNING_REGISTRY_ID');
-    this.badgeRegistryId =
-      this.config.getOrThrow<string>('SUI_BADGE_REGISTRY_ID');
+    this.adminRegistryId = this.config.getOrThrow<string>(
+      'SUI_ADMIN_REGISTRY_ID',
+    );
+    this.inkTreasuryCapId = this.config.getOrThrow<string>(
+      'SUI_INK_TREASURY_CAP_ID',
+    );
+    this.earningRegistryId = this.config.getOrThrow<string>(
+      'SUI_EARNING_REGISTRY_ID',
+    );
+    this.badgeRegistryId = this.config.getOrThrow<string>(
+      'SUI_BADGE_REGISTRY_ID',
+    );
     this.usdcCoinType = this.config.getOrThrow<string>('SUI_USDC_COIN_TYPE');
   }
 
