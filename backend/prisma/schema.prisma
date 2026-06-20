@@ -39,7 +39,7 @@ model User {
   createdSeries     Series[]         @relation("CreatorSeries")
   tipsSent          TipTransaction[] @relation("TipSender")
   tipsReceived      TipTransaction[] @relation("TipReceiver")
-  usdcBalance       UserUsdcBalance?
+  sendTransactions  SendTransaction[]
   creatorApplication CreatorApplication?
   submissionVotes    SubmissionVote[]
 
@@ -343,18 +343,26 @@ model TipTransaction {
   @@map("tip_transactions")
 }
 
-/// Postgres mirror of a user's USDC coin balance on Sui.
-/// Updated after each confirmed tip send or receive.
-/// For fresh on-chain data query the user's USDC coin objects directly.
-model UserUsdcBalance {
-  userId        String   @id @map("user_id")
-  /// Balance in micro-USDC (6 decimal places).
-  balance       BigInt   @default(0)
-  lastSyncedAt  DateTime @default(now()) @map("last_synced_at")
+/// In-app record of a user-initiated USDC transfer to an arbitrary Sui
+/// address (the wallet "send" flow). The on-chain transaction is the source of
+/// truth; this row gives the app a fast, queryable send history.
+model SendTransaction {
+  id               String    @id @default(uuid())
+  senderId         String    @map("sender_id")
+  recipientAddress String    @map("recipient_address")
+  /// Amount in micro-USDC (6 decimal places).
+  amountUsdc       BigInt    @map("amount_usdc")
+  suiTxDigest      String?   @unique @map("sui_tx_digest")
+  status           Int       @default(0)
+  idempotencyKey   String    @unique @map("idempotency_key")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  confirmedAt      DateTime? @map("confirmed_at")
 
-  user          User     @relation(fields: [userId], references: [id])
+  sender           User      @relation(fields: [senderId], references: [id])
 
-  @@map("user_usdc_balances")
+  @@index([senderId])
+  @@index([status])
+  @@map("send_transactions")
 }
 
 enum CreatorStatus {

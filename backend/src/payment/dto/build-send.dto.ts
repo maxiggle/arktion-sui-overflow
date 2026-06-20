@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString, Matches } from 'class-validator';
+import { IsNotEmpty, IsString, Matches, MaxLength } from 'class-validator';
 
 export class BuildSendDto {
   /** 32-byte Sui address (0x + 64 hex chars). */
@@ -17,4 +17,10 @@ export class BuildSendDto {
     message: 'amountUsdc must be a non-negative integer string',
   })
   amountUsdc!: string;
+
+  /** Client-generated key that makes retries of the same send idempotent. */
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(128)
+  idempotencyKey!: string;
 }

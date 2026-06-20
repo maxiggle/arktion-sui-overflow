@@ -39,12 +39,19 @@ function SendModal({
   const [amount, setAmount] = useState("");
   const [validationError, setValidationError] = useState<string | null>(null);
 
+  // Stable per send attempt so a retry reuses the same pending record server
+  // side. Reset when the recipient/amount change or the send succeeds.
+  const idempotencyKeyRef = useRef<string | null>(null);
+  const lastAttemptRef = useRef<string>("");
+
   function handleClose(val: boolean) {
     if (!val) {
       resetSend();
       setAddress("");
       setAmount("");
       setValidationError(null);
+      idempotencyKeyRef.current = null;
+      lastAttemptRef.current = "";
     }
     onOpenChange(val);
   }
@@ -61,8 +68,27 @@ function SendModal({
       return;
     }
     const microUsdc = Math.round(parsed * 1_000_000).toString();
-    await executeSend({ recipientAddress: address.trim(), amountUsdc: microUsdc });
+
+    const attempt = `${address.trim()}:${microUsdc}`;
+    if (!idempotencyKeyRef.current || lastAttemptRef.current !== attempt) {
+      idempotencyKeyRef.current =
+        typeof globalThis.crypto?.randomUUID === "function"
+          ? crypto.randomUUID()
+          : `send-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      lastAttemptRef.current = attempt;
+    }
+
+    await executeSend({
+      recipientAddress: address.trim(),
+      amountUsdc: microUsdc,
+      idempotencyKey: idempotencyKeyRef.current,
+    });
     fetchUsdcBalance();
+
+    if (usePaymentStore.getState().sendStage === "success") {
+      idempotencyKeyRef.current = null;
+      lastAttemptRef.current = "";
+    }
   }
 
   const isWorking =

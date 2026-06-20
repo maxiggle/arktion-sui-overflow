@@ -101,16 +101,32 @@ export class PaymentController {
       senderId: user.id,
       recipientAddress: dto.recipientAddress,
       amountUsdc: BigInt(dto.amountUsdc),
+      idempotencyKey: dto.idempotencyKey,
     });
   }
 
   /** Submit a user-signed gasless USDC transfer. */
   @Post('send/submit')
   @HttpCode(HttpStatus.OK)
-  async submitSend(@Body() dto: SubmitSendDto) {
+  async submitSend(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: SubmitSendDto,
+  ) {
     return this.payment.submitSend({
+      senderId: user.id,
+      sendTransactionId: dto.sendTransactionId,
       txBytes: dto.txBytes,
       userSignature: dto.userSignature,
     });
+  }
+
+  /** Send history for the authenticated user. */
+  @Get('sends')
+  async getSends(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('page') page = 1,
+    @Query('limit') limit = 20,
+  ) {
+    return this.payment.getSendHistory(user.id, Number(page), Number(limit));
   }
 }

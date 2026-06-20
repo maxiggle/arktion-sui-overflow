@@ -40,9 +40,27 @@ export interface UsdcBalanceResponse {
 }
 
 export interface BuildSendResponse {
+  sendTransactionId: string;
   txBytes: string;
 }
 
 export interface SubmitSendResponse {
   txDigest: string;
+}
+
+export interface SendHistoryItem {
+  id: string;
+  recipientAddress: string;
+  amountUsdc: string;
+  status: TipStatus;
+  suiTxDigest: string | null;
+  confirmedAt: string | null;
+  createdAt: string;
+}
+
+export interface SendHistoryPage {
+  data: SendHistoryItem[];
+  total: number;
+  page: number;
+  limit: number;
 }
