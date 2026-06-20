@@ -30,6 +30,7 @@ import { FORMAT_LABELS } from "@/lib/types/series";
 import {
   ReadingStatus,
   READING_STATUS_LABELS,
+  USER_SETTABLE_STATUSES,
 } from "@/lib/types/reading";
 import type { ChapterDto } from "@/lib/types/series";
 import type { ReadingRecordDto } from "@/lib/types/reading";
@@ -154,18 +155,19 @@ function LibraryButton({
   return (
     <div className="flex items-center gap-2">
       <Check className="h-4 w-4 text-green-500 shrink-0" />
-      <Select
-        value={String(record.status)}
-        onValueChange={handleStatusChange}
-        disabled={isMutating}
-      >
-        <SelectTrigger className="h-10 w-40 text-sm">
-          <SelectValue />
+      {/* Status is derived from reading and shown read-only. The menu only
+          offers shelving intents — Reading/Completed are earned, not chosen. */}
+      <span className="inline-flex items-center rounded-md border border-border/60 bg-muted/50 px-2.5 py-1.5 text-sm font-medium text-foreground/70">
+        {READING_STATUS_LABELS[record.status]}
+      </span>
+      <Select value="" onValueChange={handleStatusChange} disabled={isMutating}>
+        <SelectTrigger className="h-10 w-36 text-sm">
+          <SelectValue placeholder="Move to…" />
         </SelectTrigger>
         <SelectContent>
-          {Object.entries(READING_STATUS_LABELS).map(([value, label]) => (
-            <SelectItem key={value} value={value}>
-              {label}
+          {USER_SETTABLE_STATUSES.map((status) => (
+            <SelectItem key={status} value={String(status)}>
+              {READING_STATUS_LABELS[status]}
             </SelectItem>
           ))}
         </SelectContent>

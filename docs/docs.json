@@ -25,7 +25,7 @@
       },
       {
         "group": "Platform",
-        "pages": ["architecture", "ink-system", "ai-writing-assistant"]
+        "pages": ["architecture", "security", "ink-system", "ai-writing-assistant"]
       },
       {
         "group": "Development",

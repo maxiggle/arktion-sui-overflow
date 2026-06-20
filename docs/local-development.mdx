@@ -33,39 +33,53 @@ pnpm dev               # runs on :3001
 ### Backend (`.env`)
 
 ```env
-# Database
+# Core
+NODE_ENV=development
+PORT=3000
 DATABASE_URL=postgresql://...
+CORS_ORIGIN=http://localhost:3001
+
+# Auth (user)
+JWT_SECRET=
+JWT_EXPIRES_IN=7d
+GOOGLE_CLIENT_ID=                 # Google OAuth client for zkLogin
+ZKLOGIN_PROVER_URL=https://prover-dev.mystenlabs.com/v1
 
 # Sui
 SUI_NETWORK=testnet
-SUI_RPC_URL=https://fullnode.testnet.sui.io
-ADMIN_PRIVATE_KEY=          # NestJS gas sponsor wallet
-PACKAGE_ID=                 # deployed arktion package object ID
-INK_TREASURY_CAP_ID=
-PASSPORT_ADMIN_CAP_ID=
-BADGE_ADMIN_CAP_ID=
-SUBMISSION_REGISTRY_ID=
-INK_EARNING_CONFIG_ID=
-
-# Auth
-ENOKI_API_KEY=              # Sui zkLogin salt service
-JWT_SECRET=
-JWT_EXPIRY=7d
+SUI_RPC_URL=https://fullnode.testnet.sui.io:443
+ADMIN_SECRET_KEY=                 # holds AdminCap; signs minting txs (bech32 suiprivkey1...)
+GAS_SPONSOR_SECRET_KEY=           # gas sponsor wallet; = ADMIN_SECRET_KEY in Phase 1
+GAS_TREASURY_MIN_BALANCE=10000000000   # refuse new txs below this (MIST)
+SUI_PACKAGE_ID=                   # deployed arktion package object ID
+SUI_ADMIN_CAP_ID=
+SUI_ADMIN_REGISTRY_ID=
+SUI_INK_TREASURY_CAP_ID=
+SUI_EARNING_REGISTRY_ID=
+SUI_BADGE_REGISTRY_ID=
+SUI_USDC_COIN_TYPE=               # USDC coin type for tips/sends
 
 # Walrus
-WALRUS_PUBLISHER_URL=https://publisher.walrus-testnet.walrus.space
+WALRUS_UPLOAD_RELAY_URL=https://upload-relay.testnet.walrus.space
 WALRUS_AGGREGATOR_URL=https://aggregator.walrus-testnet.walrus.space
+WALRUS_DEFAULT_EPOCHS=5
 
-# AI — both are required; the service refuses to start without them
+# AI (MemWal required — service refuses to start without it)
 OPENROUTER_API_KEY=
 OPENROUTER_MODEL=meta-llama/llama-3.1-8b-instruct:free
 MEMWAL_PRIVATE_KEY=
 MEMWAL_ACCOUNT_ID=
 MEMWAL_SERVER_URL=https://relayer-staging.memory.walrus.xyz
 
-# Admin
-TOTP_ENCRYPTION_KEY=
+# Admin auth (separate secret from the user JWT)
+ADMIN_JWT_SECRET=                 # min 32 chars; keep distinct from JWT_SECRET
+TOTP_ISSUER=Arktion Admin
+TOTP_ENCRYPTION_KEY=              # 64 hex chars (32-byte AES-256-GCM key)
 ```
+
+<Info>
+  These names mirror `backend/.env.example` exactly — copy that file and fill the blanks. The app validates them at boot (`config/env.validation.ts`) and refuses to start if a required value is missing or malformed.
+</Info>
 
 ### Frontend (`.env.local`)
 

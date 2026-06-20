@@ -26,8 +26,6 @@ import { ReadingStatus } from "@/lib/types/reading";
 import { FormatType } from "@/lib/types/series";
 import type { PageDto, ChapterDto } from "@/lib/types/series";
 
-// ─── Page image ───────────────────────────────────────────────────────────────
-
 function MangaPage({
   page,
   maxWidth,
@@ -66,8 +64,6 @@ function MangaPage({
     />
   );
 }
-
-// ─── Novel reader ─────────────────────────────────────────────────────────────
 
 function NovelReader({ contentUrl }: { contentUrl: string }) {
   const [loading, setLoading] = useState(true);
@@ -135,8 +131,6 @@ function NovelReader({ contentUrl }: { contentUrl: string }) {
   );
 }
 
-// ─── Guest banner ─────────────────────────────────────────────────────────────
-
 function GuestBanner({ seriesId }: { seriesId: string }) {
   const [dismissed, setDismissed] = useState(false);
 
@@ -163,8 +157,6 @@ function GuestBanner({ seriesId }: { seriesId: string }) {
     </div>
   );
 }
-
-// ─── Top bar ─────────────────────────────────────────────────────────────────
 
 function ReaderTopBar({
   seriesId,
@@ -207,7 +199,7 @@ function ReaderTopBar({
           )}
           <p className="text-xs font-medium text-foreground truncate">
             {chapter
-              ? chapter.title ?? `Chapter ${chapter.chapterNumber}`
+              ? (chapter.title ?? `Chapter ${chapter.chapterNumber}`)
               : "Loading…"}
           </p>
         </div>
@@ -244,8 +236,7 @@ function ReaderTopBar({
           className="h-7 px-2 text-xs text-muted-foreground"
           disabled={!prevChapter}
           onClick={() =>
-            prevChapter &&
-            router.push(`/read/${seriesId}/${prevChapter.id}`)
+            prevChapter && router.push(`/read/${seriesId}/${prevChapter.id}`)
           }
         >
           <ChevronLeft className="h-3.5 w-3.5" strokeWidth={1.5} />
@@ -257,8 +248,7 @@ function ReaderTopBar({
           className="h-7 px-2 text-xs text-muted-foreground"
           disabled={!nextChapter}
           onClick={() =>
-            nextChapter &&
-            router.push(`/read/${seriesId}/${nextChapter.id}`)
+            nextChapter && router.push(`/read/${seriesId}/${nextChapter.id}`)
           }
         >
           <span className="hidden sm:inline">Next</span>
@@ -268,8 +258,6 @@ function ReaderTopBar({
     </div>
   );
 }
-
-// ─── Bottom chapter nav ───────────────────────────────────────────────────────
 
 function ReaderBottomNav({
   seriesId,
@@ -287,7 +275,9 @@ function ReaderBottomNav({
       {showTip && (
         <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-white/5 px-6 py-5 flex flex-col items-center gap-3 text-center">
           <Heart className="h-6 w-6 text-pink-400" strokeWidth={1.5} />
-          <p className="text-sm font-medium text-white/90">Enjoying this series?</p>
+          <p className="text-sm font-medium text-white/90">
+            Enjoying this series?
+          </p>
           <p className="text-xs text-white/50">
             Send the creator a USDC tip directly on-chain.
           </p>
@@ -359,8 +349,6 @@ function ReaderBottomNav({
   );
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
-
 export default function ChapterReaderPage() {
   const { seriesId, chapterId } = useParams<{
     seriesId: string;
@@ -383,6 +371,7 @@ export default function ChapterReaderPage() {
   const { user } = useAuth();
   const { upsert } = useReadingStore();
   const progressRecorded = useRef(false);
+  const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     progressRecorded.current = false;
@@ -391,21 +380,28 @@ export default function ChapterReaderPage() {
     if (!seriesById[seriesId]) {
       fetchSeriesById(seriesId);
     }
-  }, [seriesId, chapterId, fetchPages, fetchChapters, fetchSeriesById, seriesById]);
+  }, [
+    seriesId,
+    chapterId,
+    fetchPages,
+    fetchChapters,
+    fetchSeriesById,
+    seriesById,
+  ]);
 
   const sortedChapters = useMemo(
     () => [...chapters].sort((a, b) => a.chapterNumber - b.chapterNumber),
-    [chapters]
+    [chapters],
   );
 
   const currentChapter = useMemo(
     () => chapters.find((c) => c.id === chapterId) ?? null,
-    [chapters, chapterId]
+    [chapters, chapterId],
   );
 
   const currentIdx = useMemo(
     () => sortedChapters.findIndex((c) => c.id === chapterId),
-    [sortedChapters, chapterId]
+    [sortedChapters, chapterId],
   );
 
   const prevChapter = currentIdx > 0 ? sortedChapters[currentIdx - 1] : null;
@@ -417,29 +413,50 @@ export default function ChapterReaderPage() {
   const series = seriesById[seriesId] ?? null;
   const isNovel = series?.formatType === FormatType.NOVEL;
 
-  const showTip =
-    !!user && !!series?.creatorId && series.creatorId !== user.id;
+  const showTip = !!user && !!series?.creatorId && series.creatorId !== user.id;
+  const contentReady =
+    !pagesLoading &&
+    !pagesError &&
+    (isNovel ? !!pages[0]?.contentUrl : pages.length > 0);
 
-  // Record progress after pages load
   useEffect(() => {
-    if (
-      !user ||
-      progressRecorded.current ||
-      pagesLoading ||
-      pages.length === 0 ||
-      !currentChapter
-    ) {
-      return;
-    }
-    progressRecorded.current = true;
-    upsert({
-      seriesId,
-      status: ReadingStatus.READING,
-      currentChapter: currentChapter.chapterNumber,
-    }).catch(() => {
-      // Non-critical — reading progress will sync on next successful upsert.
-    });
-  }, [user, pagesLoading, pages.length, currentChapter, seriesId, upsert]);
+    if (!user || !currentChapter || !contentReady) return;
+
+    const sentinel = endRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0]?.isIntersecting || progressRecorded.current) return;
+        progressRecorded.current = true;
+
+        const isLastChapter = nextChapter === null;
+        const seriesFinished = series?.status === "completed";
+        const status =
+          isLastChapter && seriesFinished
+            ? ReadingStatus.COMPLETED
+            : ReadingStatus.READING;
+
+        upsert({
+          seriesId,
+          status,
+          currentChapter: currentChapter.chapterNumber,
+        }).catch(() => {});
+      },
+      { threshold: 0.1 },
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [
+    user,
+    contentReady,
+    currentChapter,
+    nextChapter,
+    series?.status,
+    seriesId,
+    upsert,
+  ]);
 
   const maxContentWidth = isWide ? 1200 : 800;
   const novelContentUrl = pages[0]?.contentUrl ?? null;
@@ -526,6 +543,10 @@ export default function ChapterReaderPage() {
             )}
           </>
         )}
+
+        {/* End-of-chapter marker — when this scrolls into view the reader has
+            finished the chapter, which triggers automatic progress tracking. */}
+        <div ref={endRef} aria-hidden className="h-px w-full" />
 
         <ReaderBottomNav
           seriesId={seriesId}
