@@ -412,6 +412,10 @@ model AdminUser {
   sessions            AdminSession[]
   actionLogs          AdminActionLog[]
 
+  roleChangesTargeted  AdminRoleChangeRequest[] @relation("RoleChangeTarget")
+  roleChangesRequested AdminRoleChangeRequest[] @relation("RoleChangeRequester")
+  roleChangesReviewed  AdminRoleChangeRequest[] @relation("RoleChangeReviewer")
+
   @@index([email])
   @@map("admin_users")
 }
@@ -452,4 +456,39 @@ model AdminActionLog {
   @@index([actionType])
   @@index([createdAt])
   @@map("admin_action_logs")
+}
+
+enum RoleChangeStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+/// Four-eyes role assignment. One admin requests a role change; a different
+/// admin must approve before it takes effect. The requester can never approve
+/// their own request, and neither party may act on their own account.
+model AdminRoleChangeRequest {
+  id            String           @id @default(uuid())
+  targetId      String           @map("target_id")
+  previousRole  AdminRole        @map("previous_role")
+  requestedRole AdminRole        @map("requested_role")
+  status        RoleChangeStatus @default(PENDING)
+  reason        String?          @db.Text
+
+  requestedById String           @map("requested_by_id")
+  reviewedById  String?          @map("reviewed_by_id")
+  reviewedAt    DateTime?        @map("reviewed_at")
+
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+
+  target        AdminUser        @relation("RoleChangeTarget", fields: [targetId], references: [id], onDelete: Cascade)
+  requestedBy   AdminUser        @relation("RoleChangeRequester", fields: [requestedById], references: [id])
+  reviewedBy    AdminUser?       @relation("RoleChangeReviewer", fields: [reviewedById], references: [id])
+
+  @@index([targetId])
+  @@index([status])
+  @@index([requestedById])
+  @@map("admin_role_change_requests")
 }
