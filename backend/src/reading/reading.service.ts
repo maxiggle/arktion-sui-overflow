@@ -234,7 +234,9 @@ export class ReadingService {
 
     const rewards: Array<{ key: string; trigger: InkTrigger }> = [];
 
-    if (isNew && newChapter >= 1) {
+    // Fire on any new series — chapter 0 (oneshots) counts too.
+    // Idempotency key prevents double-minting if this runs twice.
+    if (isNew) {
       rewards.push({
         key: `ink:${userId}:chapter_read:${seriesId}:chapter1`,
         trigger: InkTrigger.CHAPTER_READ,
@@ -305,7 +307,7 @@ export class ReadingService {
       );
     }
 
-    if (isNew && newChapter >= 1) {
+    if (isNew) {
       await this.badgesService.mint({
         userId,
         walletAddress,

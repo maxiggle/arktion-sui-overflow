@@ -374,6 +374,7 @@ export default function ChapterReaderPage() {
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (!seriesId || !chapterId) return;
     progressRecorded.current = false;
     fetchPages(chapterId);
     fetchChapters(seriesId);

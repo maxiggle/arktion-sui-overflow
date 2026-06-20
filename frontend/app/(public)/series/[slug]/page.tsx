@@ -208,6 +208,7 @@ export default function SeriesDetailPage() {
   const { records, fetchRecord } = useReadingStore();
 
   useEffect(() => {
+    if (!seriesId) return;
     fetchSeriesById(seriesId);
     fetchChapters(seriesId);
   }, [seriesId, fetchSeriesById, fetchChapters]);
