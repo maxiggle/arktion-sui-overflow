@@ -23,6 +23,7 @@ import { useSeriesStore } from "@/stores/series.store";
 import {
   ReadingStatus,
   READING_STATUS_LABELS,
+  USER_SETTABLE_STATUSES,
 } from "@/lib/types/reading";
 import type { ReadingRecordDto } from "@/lib/types/reading";
 import type { SeriesDto } from "@/lib/types/series";
@@ -119,18 +120,29 @@ function LibraryCard({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Current status is derived from reading and shown read-only.
+              Reading and Completed are never hand-set (Completed carries an
+              on-chain reward); the menu only offers shelving intents. */}
+          <span className="inline-flex items-center rounded-md border border-border/60 bg-muted/50 px-2 py-1 text-xs font-medium text-foreground/70">
+            {READING_STATUS_LABELS[record.status]}
+          </span>
+
           <Select
-            value={String(record.status)}
+            value=""
             onValueChange={handleStatusChange}
             disabled={isMutating}
           >
-            <SelectTrigger className="h-7 w-36 text-xs">
-              <SelectValue />
+            <SelectTrigger className="h-7 w-32 text-xs">
+              <SelectValue placeholder="Move to…" />
             </SelectTrigger>
             <SelectContent>
-              {Object.entries(READING_STATUS_LABELS).map(([value, label]) => (
-                <SelectItem key={value} value={value} className="text-xs">
-                  {label}
+              {USER_SETTABLE_STATUSES.map((status) => (
+                <SelectItem
+                  key={status}
+                  value={String(status)}
+                  className="text-xs"
+                >
+                  {READING_STATUS_LABELS[status]}
                 </SelectItem>
               ))}
             </SelectContent>

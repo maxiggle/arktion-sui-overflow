@@ -74,21 +74,44 @@ export class ReadingService {
     const prevStatus = existing?.status ?? null;
     const isNew = !existing;
     const wasCompleted = prevStatus === ReadingStatus.COMPLETED;
-    const nowCompleted = dto.status === ReadingStatus.COMPLETED;
+    const newChapter = Math.max(prevChapter, dto.currentChapter);
+
+    // "Completed" is EARNED, not chosen. It is only honoured when the reader has
+    // actually reached the series' last known chapter — otherwise the
+    // SERIES_COMPLETE reward (100 INK + a badge) could be farmed by setting the
+    // status directly via the API. An unearned completion claim is recorded as
+    // progress (READING) with no reward. "Reading" never downgrades a series
+    // that was already completed.
+    let newStatus = dto.status;
+    if (newStatus === ReadingStatus.COMPLETED && !wasCompleted) {
+      const lastChapter = await this.prisma.chapter.findFirst({
+        where: { seriesId: dto.seriesId, deletedAt: null },
+        orderBy: { chapterNumber: 'desc' },
+        select: { chapterNumber: true },
+      });
+      const reachedEnd =
+        !!lastChapter && newChapter >= lastChapter.chapterNumber;
+      if (!reachedEnd) {
+        newStatus = ReadingStatus.READING;
+      }
+    } else if (wasCompleted && newStatus === ReadingStatus.READING) {
+      newStatus = ReadingStatus.COMPLETED;
+    }
+    const nowCompleted = newStatus === ReadingStatus.COMPLETED;
 
     const record = await this.prisma.readingRecord.upsert({
       where: { userId_seriesId: { userId, seriesId: dto.seriesId } },
       create: {
         userId,
         seriesId: dto.seriesId,
-        status: dto.status,
-        currentChapter: dto.currentChapter,
+        status: newStatus,
+        currentChapter: newChapter,
         lastReadAt: new Date(),
         completedAt: nowCompleted ? new Date() : null,
       },
       update: {
-        status: dto.status,
-        currentChapter: dto.currentChapter,
+        status: newStatus,
+        currentChapter: newChapter,
         lastReadAt: new Date(),
 
         ...(!wasCompleted && nowCompleted && { completedAt: new Date() }),
@@ -107,7 +130,7 @@ export class ReadingService {
       walletAddress,
       seriesId: dto.seriesId,
       prevChapter,
-      newChapter: dto.currentChapter,
+      newChapter,
       isNew,
       wasCompleted,
       nowCompleted,
