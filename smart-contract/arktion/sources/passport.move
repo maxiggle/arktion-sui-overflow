@@ -14,9 +14,18 @@
 module arktion::passport;
 
 use arktion::admin::AdminCap;
+use sui::bcs;
 use sui::display;
+use sui::ed25519;
 use sui::event;
 use sui::package;
+
+/// Sender is not the passport's owner.
+const E_NOT_OWNER: u64 = 1;
+/// Ed25519 signature did not verify against the configured admin public key.
+const E_BAD_SIG: u64 = 2;
+/// Submitted total_ink_earned is below the stored value — a stale/replayed payload.
+const E_STALE_UPDATE: u64 = 3;
 
 public struct PASSPORT has drop {}
 
@@ -176,4 +185,97 @@ fun calculate_level(total_ink_earned: u64): u64 {
     else if (total_ink_earned >= 2000) { 3 }
     else if (total_ink_earned >= 500) { 2 }
     else { 1 }
+}
+
+/// Holds the backend admin's 32-byte Ed25519 public key. Shared so that the
+/// owner-submitted `update_stats_attested` path can verify the admin's signature
+/// over a stats payload without putting an AdminCap into the transaction.
+public struct PassportConfig has key {
+    id: UID,
+    admin_pubkey: vector<u8>,
+}
+
+/// BCS serialization of this struct IS the exact message the backend admin signs.
+/// Field order is the wire contract shared with NestJS — do not reorder.
+public struct StatsAttestation has copy, drop {
+    passport_id: ID,
+    chapters_read: u64,
+    series_completed: u64,
+    series_tracked: u64,
+    total_ink_earned: u64,
+}
+
+/// One-time post-upgrade setup: create and share the PassportConfig holding the
+/// backend admin's Ed25519 public key. `init` does not re-run on upgrade, so the
+/// config must be created through this admin-gated entry instead.
+public entry fun init_passport_config(
+    _cap: &AdminCap,
+    admin_pubkey: vector<u8>,
+    ctx: &mut TxContext,
+) {
+    assert!(admin_pubkey.length() == 32, E_BAD_SIG);
+    transfer::share_object(PassportConfig {
+        id: object::new(ctx),
+        admin_pubkey,
+    });
+}
+
+/// Owner-submitted stats update, attested by the backend admin's Ed25519 signature.
+///
+/// Unlike `update_stats` (which is uncallable in production — admin owns the
+/// AdminCap, user owns the passport, and a single transaction's owned inputs must
+/// all belong to the sender), this is signed by the passport's own wallet. The
+/// admin only sponsors gas. Trust comes from the admin's signature over the
+/// payload rather than from holding the AdminCap.
+///
+/// BACKEND INTERFACE CONTRACT — the admin signs the BCS serialization of
+/// `StatsAttestation`, i.e. exactly these 64 bytes:
+///   bytes[ 0..32] = passport object id   (32 raw bytes == ID inner address, no length prefix)
+///   bytes[32..40] = chapters_read         (u64, little-endian)
+///   bytes[40..48] = series_completed      (u64, little-endian)
+///   bytes[48..56] = series_tracked        (u64, little-endian)
+///   bytes[56..64] = total_ink_earned      (u64, little-endian)
+/// TS: `Ed25519Keypair.sign(messageBytes)` -> 64-byte signature; the stored
+/// `admin_pubkey` is `getPublicKey().toRawBytes()` (32 bytes). The canonical
+/// reference implementation is scripts/sign-passport-stats.ts.
+public entry fun update_stats_attested(
+    config: &PassportConfig,
+    passport: &mut ArktionPassport,
+    chapters_read: u64,
+    series_completed: u64,
+    series_tracked: u64,
+    total_ink_earned: u64,
+    signature: vector<u8>,
+    ctx: &TxContext,
+) {
+    assert!(passport.owner == ctx.sender(), E_NOT_OWNER);
+
+    let message = bcs::to_bytes(&StatsAttestation {
+        passport_id: object::id(passport),
+        chapters_read,
+        series_completed,
+        series_tracked,
+        total_ink_earned,
+    });
+    assert!(ed25519::ed25519_verify(&signature, &config.admin_pubkey, &message), E_BAD_SIG);
+
+    // Replay/rollback protection without adding a field: lifetime INK is monotonic
+    // non-decreasing, so a payload below the stored total is stale.
+    assert!(total_ink_earned >= passport.total_ink_earned, E_STALE_UPDATE);
+
+    passport.chapters_read = chapters_read;
+    passport.series_completed = series_completed;
+    passport.series_tracked = series_tracked;
+    passport.total_ink_earned = total_ink_earned;
+    passport.level = calculate_level(total_ink_earned);
+
+    event::emit(StatsUpdated {
+        object_id: object::id(passport),
+        owner: passport.owner,
+        chapters_read,
+        series_completed,
+        series_tracked,
+        total_ink_earned,
+        level: passport.level,
+    });
 }

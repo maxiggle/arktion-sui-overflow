@@ -2,7 +2,7 @@
 module arktion::arktion_tests;
 
 use arktion::admin::{Self, AdminCap, AdminRegistry};
-use arktion::passport::{Self, ArktionPassport};
+use arktion::passport::{Self, ArktionPassport, PassportConfig};
 use arktion::ink::{Self, INK};
 use arktion::ink_earning::{Self, EarningRegistry, EarningRecord};
 use arktion::reading_history::{Self, UserLibrary};
@@ -16,6 +16,7 @@ use sui::test_scenario;
 
 const ADMIN: address = @0xAD;
 const USER: address = @0xBEEF;
+const OTHER_USER: address = @0xC0FFEE;
 
 // ─── Shared setup helpers ─────────────────────────────────────────────────────
 
@@ -250,6 +251,196 @@ fun test_passport_update_stats_all_fields() {
         assert!(passport::level(&p) == 2); // 500 <= 1200 < 2000
         s.return_to_sender(p);
         s.return_to_sender(cap);
+    };
+    s.end();
+}
+
+// ─── update_stats_attested (owner-signed, admin-attested) ──────────────────────
+//
+// Move cannot produce an Ed25519 signature (the framework only exposes verify), so
+// these signatures are precomputed off-chain by scripts/sign-passport-stats.ts over
+// the *deterministic* test passport id and pasted in as literals.
+//
+// The id is fixed by the prelude below: tx0 admin::init_for_testing, tx1 mint(USER).
+// The passport is the only object created in tx1, so its id is stable across runs:
+//   0xd726ecf6f7036ee3557cd6c7b93a49b231070e8eecada9cfa157e40e3f02e5d3
+// If that prelude changes (tx count/order, or objects created before the mint), the
+// id changes and every signature below must be regenerated via the script.
+//
+// TEST_PUBKEY corresponds to the fixed test seed in sign-passport-stats.ts (NOT a
+// production key). All signatures are raw 64-byte Ed25519 over the 64-byte BCS
+// message (32-byte id ++ four u64 LE).
+
+#[test_only]
+fun test_pubkey(): vector<u8> {
+    vector[234, 74, 108, 99, 226, 156, 82, 10, 190, 245, 80, 123, 19, 46, 197, 249, 149, 71, 118, 174, 190, 190, 123, 146, 66, 30, 234, 105, 20, 70, 210, 44]
+}
+
+// Valid signature over (passport_id, chapters_read=42, series_completed=7, series_tracked=15, total_ink_earned=1200).
+#[test_only]
+fun sig_happy(): vector<u8> {
+    vector[128, 193, 141, 210, 204, 251, 27, 177, 159, 19, 71, 130, 71, 123, 30, 164, 120, 57, 124, 249, 199, 28, 188, 175, 213, 181, 44, 133, 115, 24, 32, 167, 108, 136, 94, 236, 65, 77, 230, 139, 189, 34, 242, 149, 228, 185, 193, 252, 109, 41, 61, 30, 168, 136, 33, 15, 175, 155, 38, 62, 208, 57, 98, 11]
+}
+
+// Valid signature over (passport_id, 0, 0, 0, total_ink_earned=500). Used to prove the
+// staleness guard fires for a correctly-signed but lower-INK (replayed) payload.
+#[test_only]
+fun sig_stale(): vector<u8> {
+    vector[89, 151, 57, 167, 232, 201, 238, 166, 239, 155, 231, 56, 167, 25, 166, 121, 46, 66, 54, 154, 67, 96, 165, 252, 228, 169, 225, 145, 195, 80, 23, 167, 105, 255, 50, 52, 8, 145, 10, 236, 201, 37, 253, 52, 27, 137, 132, 236, 109, 209, 141, 181, 157, 88, 221, 84, 111, 203, 247, 138, 136, 213, 123, 0]
+}
+
+// Valid signature, but over a DIFFERENT passport id (0x…cafe) with the same stats.
+// Submitting it against the real passport reconstructs a different message, so verify fails.
+#[test_only]
+fun sig_wrong_id(): vector<u8> {
+    vector[145, 160, 190, 177, 209, 54, 195, 245, 99, 148, 0, 224, 200, 0, 43, 176, 233, 192, 116, 240, 220, 245, 44, 154, 225, 255, 59, 140, 213, 255, 241, 200, 196, 170, 128, 45, 31, 78, 199, 215, 254, 181, 140, 38, 126, 175, 245, 222, 123, 144, 248, 128, 179, 126, 123, 220, 83, 97, 103, 46, 18, 77, 88, 12]
+}
+
+// A syntactically-valid-length (64-byte) but cryptographically-garbage signature.
+#[test_only]
+fun dummy_sig(): vector<u8> {
+    let mut v: vector<u8> = vector[];
+    let mut i = 0u64;
+    while (i < 64) { v.push_back(9); i = i + 1; };
+    v
+}
+
+/// Prelude shared by every attested test: admin init, mint passport to USER (fixes
+/// the deterministic id), then create + share the PassportConfig with TEST_PUBKEY.
+/// Leaves the scenario at a fresh tx ready for the caller to advance.
+#[test_only]
+fun setup_attested(s: &mut test_scenario::Scenario) {
+    { admin::init_for_testing(s.ctx()); };
+    s.next_tx(ADMIN);
+    {
+        let cap = s.take_from_sender<AdminCap>();
+        passport::mint(&cap, USER, s.ctx());
+        s.return_to_sender(cap);
+    };
+    s.next_tx(ADMIN);
+    {
+        let cap = s.take_from_sender<AdminCap>();
+        passport::init_passport_config(&cap, test_pubkey(), s.ctx());
+        s.return_to_sender(cap);
+    };
+}
+
+#[test]
+fun test_attested_happy_path() {
+    let mut s = test_scenario::begin(ADMIN);
+    setup_attested(&mut s);
+    s.next_tx(USER); // the passport owner submits their own update
+    {
+        let config = s.take_shared<PassportConfig>();
+        let mut p = s.take_from_sender<ArktionPassport>();
+        passport::update_stats_attested(&config, &mut p, 42, 7, 15, 1200, sig_happy(), s.ctx());
+        assert!(passport::chapters_read(&p) == 42);
+        assert!(passport::series_completed(&p) == 7);
+        assert!(passport::series_tracked(&p) == 15);
+        assert!(passport::total_ink_earned(&p) == 1200);
+        assert!(passport::level(&p) == 2); // 500 <= 1200 < 2000
+        s.return_to_sender(p);
+        test_scenario::return_shared(config);
+    };
+    s.end();
+}
+
+#[test, expected_failure(abort_code = ::arktion::passport::E_BAD_SIG)]
+fun test_attested_forged_signature_aborts() {
+    let mut s = test_scenario::begin(ADMIN);
+    setup_attested(&mut s);
+    s.next_tx(USER);
+    {
+        let config = s.take_shared<PassportConfig>();
+        let mut p = s.take_from_sender<ArktionPassport>();
+        passport::update_stats_attested(&config, &mut p, 42, 7, 15, 1200, dummy_sig(), s.ctx());
+        s.return_to_sender(p);
+        test_scenario::return_shared(config);
+    };
+    s.end();
+}
+
+#[test, expected_failure(abort_code = ::arktion::passport::E_BAD_SIG)]
+fun test_attested_wrong_passport_id_aborts() {
+    let mut s = test_scenario::begin(ADMIN);
+    setup_attested(&mut s);
+    s.next_tx(USER);
+    {
+        let config = s.take_shared<PassportConfig>();
+        let mut p = s.take_from_sender<ArktionPassport>();
+        // sig_wrong_id signs the same stats but a different passport id; the message
+        // reconstructed here uses the real id, so verification fails.
+        passport::update_stats_attested(&config, &mut p, 42, 7, 15, 1200, sig_wrong_id(), s.ctx());
+        s.return_to_sender(p);
+        test_scenario::return_shared(config);
+    };
+    s.end();
+}
+
+#[test, expected_failure(abort_code = ::arktion::passport::E_STALE_UPDATE)]
+fun test_attested_replay_lower_ink_aborts() {
+    let mut s = test_scenario::begin(ADMIN);
+    setup_attested(&mut s);
+    s.next_tx(USER);
+    {
+        let config = s.take_shared<PassportConfig>();
+        let mut p = s.take_from_sender<ArktionPassport>();
+        // First, a valid update raises total_ink_earned to 1200.
+        passport::update_stats_attested(&config, &mut p, 42, 7, 15, 1200, sig_happy(), s.ctx());
+        // Replaying a correctly-signed older payload (ink=500 < 1200) passes signature
+        // verification but trips the monotonic-INK guard.
+        passport::update_stats_attested(&config, &mut p, 0, 0, 0, 500, sig_stale(), s.ctx());
+        s.return_to_sender(p);
+        test_scenario::return_shared(config);
+    };
+    s.end();
+}
+
+#[test, expected_failure(abort_code = ::arktion::passport::E_NOT_OWNER)]
+fun test_attested_non_owner_aborts() {
+    let mut s = test_scenario::begin(ADMIN);
+    setup_attested(&mut s);
+    // A non-owner (OTHER_USER) takes the USER-owned passport and tries to update it.
+    // The owner check precedes signature verification, so no valid signature is needed.
+    s.next_tx(OTHER_USER);
+    {
+        let config = s.take_shared<PassportConfig>();
+        let mut p = test_scenario::take_from_address<ArktionPassport>(&s, USER);
+        passport::update_stats_attested(&config, &mut p, 42, 7, 15, 1200, dummy_sig(), s.ctx());
+        test_scenario::return_to_address(USER, p);
+        test_scenario::return_shared(config);
+    };
+    s.end();
+}
+
+/// KNOWN-LIMITATION REGRESSION (documentation test).
+///
+/// The original `update_stats(&AdminCap, &mut ArktionPassport, …)` is uncallable in
+/// production: a single Sui transaction's non-gas owned inputs must all belong to the
+/// sender, but the admin owns the AdminCap while the user owns the passport. No sender
+/// can supply both, so the admin can never drive a user-owned passport on-chain.
+///
+/// `test_scenario` does NOT model that ownership rule — it will happily let a test hold
+/// both objects at once (see `test_passport_update_stats_all_fields`, which only works
+/// because it mints the passport to the admin, something production never does). So this
+/// limitation cannot be reproduced as an on-chain abort inside a unit test.
+///
+/// This test instead documents the constraint and asserts the supported replacement —
+/// the owner-signed `update_stats_attested` path — produces the same result without any
+/// AdminCap in the transaction.
+#[test]
+fun test_old_update_stats_known_limitation_uses_attested_path() {
+    let mut s = test_scenario::begin(ADMIN);
+    setup_attested(&mut s);
+    s.next_tx(USER);
+    {
+        let config = s.take_shared<PassportConfig>();
+        let mut p = s.take_from_sender<ArktionPassport>();
+        passport::update_stats_attested(&config, &mut p, 42, 7, 15, 1200, sig_happy(), s.ctx());
+        assert!(passport::total_ink_earned(&p) == 1200);
+        assert!(passport::level(&p) == 2);
+        s.return_to_sender(p);
+        test_scenario::return_shared(config);
     };
     s.end();
 }
