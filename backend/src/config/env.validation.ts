@@ -94,6 +94,10 @@ class EnvironmentVariables {
   @IsString()
   SUI_USDC_COIN_TYPE!: string;
 
+  /** Shared PassportConfig object id holding the admin Ed25519 pubkey for attested passport syncs. */
+  @IsString()
+  SUI_PASSPORT_CONFIG_ID!: string;
+
   @IsInt()
   @IsOptional()
   GAS_TREASURY_MIN_BALANCE: number = 10_000_000_000; // 10 SUI in MIST

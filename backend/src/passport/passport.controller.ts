@@ -1,15 +1,18 @@
 import {
+  Body,
   Controller,
   Get,
   Post,
   Param,
+  Req,
   Res,
   UseGuards,
   HttpStatus,
 } from '@nestjs/common';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 
 import { PassportService } from './passport.service';
+import { SubmitSyncDto } from './dto/submit-sync.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../common/types/authenticated-user.type';
@@ -67,8 +70,15 @@ export class PassportController {
    */
   @Get('me')
   @UseGuards(JwtAuthGuard)
-  async getMyPassport(@CurrentUser() user: AuthenticatedUser) {
-    return this.passport.findByUserId(user.id, user.walletAddress);
+  async getMyPassport(
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: Request,
+  ) {
+    return this.passport.findByUserId(
+      user.id,
+      user.walletAddress,
+      resolveApiBase(req),
+    );
   }
 
   /**
@@ -87,6 +97,47 @@ export class PassportController {
   async takeSnapshot(@CurrentUser() user: AuthenticatedUser) {
     return await this.passport.takeSnapshot(user.id);
   }
+
+  /**
+   * Build the gasless transaction that anchors the user's current stats onto
+   * their on-chain passport. The user signs the returned bytes with zkLogin and
+   * POSTs them to /passport/sync/submit.
+   */
+  @Post('sync/build')
+  @UseGuards(JwtAuthGuard)
+  async buildSync(@CurrentUser() user: AuthenticatedUser) {
+    return this.passport.buildSyncTransaction(user.id, user.walletAddress);
+  }
+
+  /** Submit the user-signed passport sync transaction. */
+  @Post('sync/submit')
+  @UseGuards(JwtAuthGuard)
+  async submitSync(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: SubmitSyncDto,
+  ) {
+    return this.passport.submitSyncTransaction(
+      user.id,
+      dto.txBytes,
+      dto.userSignature,
+    );
+  }
+}
+
+/**
+ * Public base URL of this API as the browser reached it. Used to build the
+ * passport image URL so it works in every environment without configuration.
+ * `API_BASE_URL` overrides it (e.g. to force a canonical host).
+ */
+function resolveApiBase(req: Request): string {
+  const override = process.env.API_BASE_URL;
+  if (override) return override.replace(/\/$/, '');
+
+  const proto =
+    (req.headers['x-forwarded-proto'] as string | undefined)?.split(',')[0] ??
+    req.protocol;
+  const host = req.get('host');
+  return `${proto}://${host}/api/v1`;
 }
 
 function buildPlaceholderSvg(address: string): string {

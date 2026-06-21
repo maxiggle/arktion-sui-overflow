@@ -1,9 +1,26 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { SuiClientTypes } from '@mysten/sui/client';
+import { Transaction } from '@mysten/sui/transactions';
+import { bcs } from '@mysten/sui/bcs';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { SuiService } from '../sui/sui.service';
+import { GasService } from '../sui/gas.service';
 import { WalrusService } from '../sui/walrus.service';
+
+/**
+ * BCS layout of the message the admin signs — MUST byte-match the Move
+ * `StatsAttestation` struct in passport.move (field order is the wire contract).
+ *   passport_id (32 raw bytes) | chapters_read | series_completed |
+ *   series_tracked | total_ink_earned   (each u64, little-endian)
+ */
+const StatsAttestation = bcs.struct('StatsAttestation', {
+  passport_id: bcs.Address,
+  chapters_read: bcs.u64(),
+  series_completed: bcs.u64(),
+  series_tracked: bcs.u64(),
+  total_ink_earned: bcs.u64(),
+});
 
 type OnChainPassport = SuiClientTypes.GetObjectResponse<{ json: true }>;
 
@@ -29,8 +46,77 @@ export class PassportService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly sui: SuiService,
+    private readonly gas: GasService,
     private readonly walrus: WalrusService,
   ) {}
+
+  /**
+   * Build the gasless, user-signed transaction that pushes the user's current
+   * Postgres stats onto their on-chain passport.
+   *
+   * The admin signs the stat payload (Ed25519) so the values are trustworthy;
+   * the user signs the transaction (they own the passport); the gas sponsor
+   * covers gas. Returns base64 tx bytes for the frontend to sign with zkLogin
+   * and POST back to /passport/sync/submit.
+   */
+  async buildSyncTransaction(
+    userId: string,
+    walletAddress: string,
+  ): Promise<{ txBytes: string }> {
+    const passport = await this.prisma.passport.findUnique({
+      where: { userId },
+    });
+    if (!passport) throw new NotFoundException('Passport not found');
+
+    // Admin attestation over the exact totals being written.
+    const message = StatsAttestation.serialize({
+      passport_id: passport.suiObjectId,
+      chapters_read: passport.chaptersRead,
+      series_completed: passport.seriesCompleted,
+      series_tracked: passport.seriesTracked,
+      total_ink_earned: passport.totalInkEarned,
+    }).toBytes();
+    const signature = await this.sui.adminKeypair.sign(message);
+
+    const tx = new Transaction();
+    tx.moveCall({
+      target: `${this.sui.packageId}::passport::update_stats_attested`,
+      arguments: [
+        tx.object(this.sui.passportConfigId),
+        tx.object(passport.suiObjectId),
+        tx.pure.u64(passport.chaptersRead),
+        tx.pure.u64(passport.seriesCompleted),
+        tx.pure.u64(passport.seriesTracked),
+        tx.pure.u64(passport.totalInkEarned),
+        tx.pure.vector('u8', Array.from(signature)),
+      ],
+    });
+
+    return this.gas.buildSponsoredBytes(tx, walletAddress);
+  }
+
+  /**
+   * Submit the user-signed sync transaction. The gas sponsor co-signs and
+   * executes; on success the Postgres `lastSyncedAt` is bumped.
+   */
+  async submitSyncTransaction(
+    userId: string,
+    txBytes: string,
+    userSignature: string,
+  ): Promise<{ txDigest: string }> {
+    const result = await this.gas.submitSponsoredTx(txBytes, userSignature);
+    const txDigest = result.Transaction!.digest;
+
+    await this.prisma.passport.update({
+      where: { userId },
+      data: { lastSyncedAt: new Date() },
+    });
+
+    this.logger.log(
+      `Passport synced on-chain: userId=${userId} digest=${txDigest}`,
+    );
+    return { txDigest };
+  }
 
   /**
    * Look up a passport by the user's Sui wallet address.
@@ -50,14 +136,17 @@ export class PassportService {
    * path — Postgres mirrors the on-chain state and is updated every time we
    * mutate the chain. A weekly cron (Batch 4) reconciles any drift.
    */
-  async findByUserId(userId: string, walletAddress = '') {
+  async findByUserId(
+    userId: string,
+    walletAddress = '',
+    apiBase = process.env.API_BASE_URL ?? 'http://localhost:3000/api/v1',
+  ) {
     const passport = await this.prisma.passport.findUnique({
       where: { userId },
     });
     if (!passport) {
       throw new NotFoundException('Passport not found');
     }
-    const apiBase = process.env.API_BASE_URL ?? 'http://localhost:3000/api/v1';
     return {
       objectId: passport.suiObjectId,
       level: passport.level,

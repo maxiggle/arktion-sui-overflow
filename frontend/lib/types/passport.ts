@@ -21,3 +21,11 @@ export interface SnapshotResult {
   recordCount: number;
   onChainAnchored: boolean;
 }
+
+export interface BuildSyncResponse {
+  txBytes: string;
+}
+
+export interface SubmitSyncResponse {
+  txDigest: string;
+}

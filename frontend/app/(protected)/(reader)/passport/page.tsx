@@ -229,7 +229,21 @@ export default function PassportPage() {
     snapshotError,
     fetchPassport,
     exportSnapshot,
+    syncStage,
+    syncTxDigest,
+    syncError,
+    syncOnChain,
   } = usePassportStore();
+
+  const isSyncing =
+    syncStage === "building" ||
+    syncStage === "signing" ||
+    syncStage === "submitting";
+  const syncLabel: Record<string, string> = {
+    building: "Preparing…",
+    signing: "Signing…",
+    submitting: "Anchoring on-chain…",
+  };
 
   useEffect(() => {
     fetchPassport();
@@ -296,14 +310,15 @@ export default function PassportPage() {
       <div className="grid gap-8 lg:grid-cols-[300px_1fr] lg:items-start">
         {/* ── Left: Passport card ── */}
         <div className="space-y-4">
-          {/* Image */}
-          <div className="relative w-full aspect-[3/4] rounded-2xl overflow-hidden border border-border/60 bg-muted shadow-lg shadow-black/10">
+          {/* Image — the SVG is the full credential art (portrait 3:4), so we
+              contain it (never crop) and let it own the level/tier badge. */}
+          <div className="relative w-full aspect-[3/4] rounded-2xl overflow-hidden border border-border/60 bg-[#0f0f1a] shadow-lg shadow-black/10">
             {passport.imageUrl ? (
               <Image
                 src={passport.imageUrl}
                 alt="Your Arktion passport"
                 fill
-                className="object-cover"
+                className="object-contain"
                 sizes="300px"
                 priority
                 unoptimized
@@ -314,11 +329,6 @@ export default function PassportPage() {
                 <span className="text-xs">Generating passport…</span>
               </div>
             )}
-
-            {/* Level badge overlay */}
-            <div className="absolute top-3 right-3 rounded-full bg-background/90 backdrop-blur px-2.5 py-1 text-xs font-semibold text-foreground border border-border/60">
-              Lv {passport.level}
-            </div>
           </div>
 
           {/* Level progress */}
@@ -378,6 +388,40 @@ export default function PassportPage() {
               </div>
             )}
           </div>
+
+          {objectId && (
+            <div className="mt-3 border-t border-border/40 pt-3">
+              {syncStage === "success" && syncTxDigest ? (
+                <a
+                  href={`https://suiscan.xyz/testnet/tx/${syncTxDigest}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs text-green-500 hover:underline"
+                >
+                  Stats anchored on-chain — view transaction
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              ) : (
+                <button
+                  onClick={() => syncOnChain()}
+                  disabled={isSyncing}
+                  className="inline-flex items-center gap-2 rounded-lg border border-border/60 px-3 py-1.5 text-xs font-medium text-foreground/80 hover:bg-accent disabled:opacity-50 transition-colors"
+                >
+                  {isSyncing && <Loader2 className="h-3 w-3 animate-spin" />}
+                  {isSyncing ? syncLabel[syncStage] : "Anchor stats on-chain"}
+                </button>
+              )}
+              <p className="mt-1.5 text-[10px] text-muted-foreground/70">
+                Push your latest level &amp; stats onto the passport NFT. You
+                sign; gas is covered.
+              </p>
+              {syncStage === "error" && syncError && (
+                <p className="mt-1.5 text-[10px] text-destructive">
+                  {syncError}
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         {/* ── Right: Stats + snapshot ── */}

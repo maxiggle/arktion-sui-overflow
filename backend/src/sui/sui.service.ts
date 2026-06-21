@@ -33,6 +33,7 @@ export class SuiService implements OnModuleInit {
   readonly earningRegistryId: string;
   readonly badgeRegistryId: string;
   readonly usdcCoinType: string;
+  readonly passportConfigId: string;
   readonly network: string;
 
   constructor(private readonly config: ConfigService) {
@@ -65,6 +66,9 @@ export class SuiService implements OnModuleInit {
       'SUI_BADGE_REGISTRY_ID',
     );
     this.usdcCoinType = this.config.getOrThrow<string>('SUI_USDC_COIN_TYPE');
+    this.passportConfigId = this.config.getOrThrow<string>(
+      'SUI_PASSPORT_CONFIG_ID',
+    );
   }
 
   async onModuleInit(): Promise<void> {
