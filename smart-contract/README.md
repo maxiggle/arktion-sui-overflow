@@ -6,19 +6,18 @@ Sui Move package powering the Arktion publishing and reading platform. The NestJ
 
 ## Testnet Deployment
 
-**Network:** Sui Testnet  
-**Transaction:** `JAxCz9EsLFL2AnkJandFS7mhxGDwPzFJ8rzGarq1nSZS`  
-**Deployed:** 2026-05-26
+**Network:** Sui Testnet
 
 ### Package
 
 | Field | Value |
 |---|---|
-| Package ID | `0x18fdcc9d94ca3644c768730de7e4d4731e0af7f230e3c4dfa792e6e28577ed90` |
-| Version | 1 |
-| Modules | `admin`, `ink`, `ink_earning`, `journal`, `passport`, `reading_history`, `series_badges` |
+| Package ID (current) | `0x1255a073c43081619cbc7fbe17fd9034eca5a619875b087e57cf11897193462d` |
+| Original / lineage ID | `0xb35f71ecf5e474a426a5a70a451e582ef92c72cbcad660e071ea74dd008e5b5f` |
+| Version | 2 (upgraded — added attested passport stat sync) |
+| Modules | `admin`, `ink`, `ink_earning`, `journal`, `passport`, `reading_history`, `submission`, `badges` |
 
-This is the address every PTB call must reference. Set it as `ARKTION_PACKAGE_ID` in the NestJS environment.
+The **current** package ID is the address every PTB call must reference — set it as `SUI_PACKAGE_ID` in the NestJS environment. The package has been upgraded once; the original ID is kept for type-lineage reference (existing objects are typed against it).
 
 ---
 
@@ -28,8 +27,10 @@ Shared objects are accessible by any transaction without ownership. NestJS passe
 
 | Object | ID | Purpose |
 |---|---|---|
-| `AdminRegistry` | `0xa06eb469b1bb8187ddea83385d586c542f81ce0c573615aed202bb9a9be6463c` | Canonical whitelist of active admin addresses. Referenced when granting or revoking admin access. |
-| `EarningRegistry` | `0x017fde8088596c458b9a28aea2a6e5457e18d67134337f9639d0268f70f1f2f3` | Stores every processed idempotency key to prevent INK double-minting. Passed to every `ink_earning::earn` call. |
+| `AdminRegistry` | `0x5e4dce4d703d64b9aa2ebb6a94cfc04a5ebce922e59c0c206e47ec997c95d128` | Canonical whitelist of active admin addresses. Referenced when granting or revoking admin access. |
+| `EarningRegistry` | `0x3d585639de76c4f458d5e210882b1b829bebbf753255c767e295c85165d9fe68` | Stores every processed idempotency key to prevent INK double-minting. Passed to every `ink_earning::earn` call. |
+| `BadgeRegistry` | `0xca81b042295dd5faa59eb68d492ff0a57a4e0a3e89c5385bdf25f4defb870694` | Tracks issued soul-bound badges. Passed to every `badges::mint` call. |
+| `PassportConfig` | `0x23eba300571024bc932ebe14a3b5a42e26ba5749c2f1edec4d4a979977877ef8` | Holds the admin Ed25519 public key used to verify attested passport stat updates. |
 
 ---
 
@@ -39,13 +40,13 @@ These objects must be held by the NestJS hot wallet. Without them, no guarded co
 
 | Object | ID | Purpose |
 |---|---|---|
-| `AdminCap` | `0x32662928487849bab8d3a17fdf554f72d414017b90dbac86f4aefa286b1f9a2d` | Proof of admin authority. Required as input to all admin-gated functions: `mint`, `earn`, `create_library`, `create_journal`, `grant`, `revoke`, `set_history_blob`, `set_blob_id`, `update_stats`. |
-| `TreasuryCap<INK>` | `0xd5b181791ff8316c862a5184ce14378d41b4303eb84a5ebcc815e2a115357f5d` | Controls INK supply. Required alongside `AdminCap` for minting and alone for burning. |
+| `AdminCap` | `0xd335ddae39ccafc92cc30b20861a3e0f3c105da311bc1e0f3649624e7707ae0c` | Proof of admin authority. Required as input to all admin-gated functions: `mint`, `earn`, `create_library`, `create_journal`, `grant`, `revoke`, `set_history_blob`, `init_passport_config`. |
+| `TreasuryCap<INK>` | `0x34a1e9bb1174a298eb41108edeb6532858e8266bec0e45e5a7ca7ef508bb8f80` | Controls INK supply. Required alongside `AdminCap` for minting and alone for burning. |
 
-> **Important:** Both objects were sent to the deployer wallet at publish time. Transfer them to the NestJS hot wallet before going live:
+> In Phase 1 these are held by the deployer wallet, which is also the NestJS admin/gas-sponsor wallet (`SUI_ADMIN_SECRET_KEY`), so no transfer is needed. To split roles later, transfer them to a dedicated hot wallet:
 > ```bash
-> sui client transfer --to <nestjs-wallet> --object-id 0x32662928487849bab8d3a17fdf554f72d414017b90dbac86f4aefa286b1f9a2d --gas-budget 10000000
-> sui client transfer --to <nestjs-wallet> --object-id 0xd5b181791ff8316c862a5184ce14378d41b4303eb84a5ebcc815e2a115357f5d --gas-budget 10000000
+> sui client transfer --to <nestjs-wallet> --object-id 0xd335ddae39ccafc92cc30b20861a3e0f3c105da311bc1e0f3649624e7707ae0c --gas-budget 10000000
+> sui client transfer --to <nestjs-wallet> --object-id 0x34a1e9bb1174a298eb41108edeb6532858e8266bec0e45e5a7ca7ef508bb8f80 --gas-budget 10000000
 > ```
 
 ---
@@ -54,7 +55,7 @@ These objects must be held by the NestJS hot wallet. Without them, no guarded co
 
 | Object | ID | Purpose |
 |---|---|---|
-| `UpgradeCap` | `0x21885aa46b71d0da8666c0f9bf5bda0dc7a8781cbf0dcab5c50469c868404c13` | Required to publish future upgrades to this package. Keep in a secure wallet — loss means the package can never be upgraded. |
+| `UpgradeCap` | `0xe3c8de117b7a14290c0bf8eaa5da12044a53f3f27332c77eaadb7d1c6a7d9a79` | Required to publish future upgrades to this package. Keep in a secure wallet — loss means the package can never be upgraded. |
 
 ---
 
@@ -116,23 +117,35 @@ Portable reading identity for external series (AniList, MangaDex, etc.). Entries
 
 Format codes: `0` NOVEL · `1` MANGA · `2` MANHWA · `3` MANHUA · `4` WEBTOON
 
-### `series_badges`
-Soul-bound achievement badges per series. Lacks `store` ability — cannot be transferred once issued.
+### `badges`
+Soul-bound achievement badges. Lacks `store` ability — cannot be transferred once issued.
 
 | Function | Caller | Description |
 |---|---|---|
-| `mint(cap, recipient, series_id, badge_type, tier, metadata_blob_id, ctx)` | NestJS | Mint and transfer a soul-bound badge. Requires a Walrus BlobId for badge metadata. |
+| `mint(cap, registry, recipient, category, badge_type, series_key, tier, metadata_blob_id, ctx)` | NestJS | Mint and transfer a soul-bound badge. Requires a Walrus BlobId for badge metadata. |
 
 Badge types: `0` INITIATE · `1` SCHOLAR · `2` VETERAN · `3` ELDER · `4` LEGEND
 
+### `submission`
+Community series suggestions and INK-weighted DAO voting. Approval mints the submitter's INK reward + Contributor badge atomically.
+
+| Function | Caller | Description |
+|---|---|---|
+| `submit(...)` | User (zkLogin) | Register a series suggestion for community voting. |
+| `cast_vote(...)` | User (zkLogin) | Vote on a pending submission, weighted by INK balance. |
+| `finalize(...)` | NestJS | Resolve a submission once quorum + threshold are met (or on admin override). |
+
 ### `passport`
-Soul-bound user profile. Tracks lifetime stats and level. NestJS syncs it from Postgres on a cadence.
+Soul-bound user profile. Tracks lifetime stats and level. Postgres is the live mirror; on-chain fields are advanced by the reader via an admin-attested, user-signed sync.
 
 | Function | Caller | Description |
 |---|---|---|
 | `mint(cap, recipient, ctx)` | NestJS | Issue a passport to a new user. Defaults: level 1, all stats 0. |
-| `update_stats(cap, passport, chapters, completed, tracked, ink, ctx)` | NestJS | Overwrite all stat fields and recalculate level. |
+| `init_passport_config(cap, admin_pubkey, ctx)` | NestJS (once) | Create the shared `PassportConfig` holding the admin Ed25519 public key. |
+| `update_stats_attested(config, passport, chapters, completed, tracked, ink, signature, ctx)` | User (zkLogin), admin-sponsored | Update stats. The admin Ed25519-signs the values (verified on-chain); the reader signs the transaction. Totals are monotonic (replay-protected). |
 | `set_blob_id(cap, passport, blob_id, ctx)` | NestJS | Anchor a Walrus BlobId for the identity snapshot. Overwrites on repeat calls. |
+
+> The legacy `update_stats(cap, passport, ...)` is retained for compatibility but is **uncallable in production** — it needs the AdminCap and a user-owned passport in one transaction, which no single sender can provide. Use `update_stats_attested`.
 
 Level thresholds:
 

@@ -97,7 +97,7 @@ Arktion replaces the platform middleman with Sui smart contracts. Creators own t
 
 - **INK token** — earned through reading, never purchasable; minted on Sui via `ink_earning` with idempotency keys preventing double-minting. Earning rates: 10 INK per chapter read, 100 INK for completing a series, 50 INK when a community submission you made gets approved by the DAO.
 - **Six reader levels** — Wanderer (0 INK) → Seeker (500) → Devoted (2,000) → Lorekeeper (6,000) → Chronicle (15,000) → Arktion Elder (40,000). Level is calculated from _lifetime_ INK earned, not current balance, so spending INK never demotes a reader. Each level has its own passport NFT visual — a dynamic SVG generated and served directly from the backend, which is what Sui explorers and NFT marketplaces display.
-- **USDC tipping** — direct to creator wallets on Sui, gas sponsored, ~400ms confirmation; wallet funded manually for now (Transak on-ramp is Phase 2)
+- **USDC tipping** — direct to creator wallets on Sui, free transfers, ~400ms confirmation; readers supply their own USDC (no built-in fiat ramp)
 - **Soul-bound badge system** — reading achievements, community badges, series credentials; minted on-chain, non-transferable
 - **Community series submissions** — any reader can suggest a series for the platform; approved submissions earn the submitter 50 INK + a Contributor badge, minted atomically in a single sponsored PTB
 - **DAO voting on submissions** — INK-weighted community governance. The eligibility requirement is simple: a reader must hold at least 1 INK, which means they must have actually read at least one chapter on Arktion. A brand-new account that has never opened a chapter cannot vote. Vote weight equals the voter's current INK balance at cast time — readers who have read more chapters carry proportionally more influence over what gets added to the platform. Quorum: 500 total INK weight across all votes. Approval threshold: 60%. Voting window: 7 days. The outcome auto-finalises the moment quorum and a decisive margin are both met, without any manual step. Admin emergency override is retained for spam or abuse cases.
@@ -172,7 +172,7 @@ MemWal is required. The service will refuse to start if `MEMWAL_PRIVATE_KEY` or 
 | Blockchain   | Sui testnet, Move smart contracts                                        |
 | Blob Storage | Walrus (decentralized, content-addressed)                                |
 | AI           | OpenRouter API + MemWal (Walrus Memory)                                  |
-| Payments     | USDC on Sui (Transak on/off-ramp in Phase 2)                             |
+| Payments     | USDC on Sui (gas-sponsored transfers)                                    |
 
 ### How it fits together
 
@@ -186,7 +186,7 @@ PostgreSQL         Sui testnet
                     Walrus
 ```
 
-The backend is the sole point of contact with the blockchain. The frontend never constructs or signs transactions — NestJS constructs, sponsors, and submits every Sui PTB on behalf of the user.
+The backend is the sole point of contact with the blockchain — it constructs, sponsors, and submits every Sui PTB. Admin-only actions (passport/INK/badge minting) are built and signed by NestJS; actions on a user-owned object (USDC tips/transfers, anchoring passport stats) are built and gas-sponsored by NestJS but signed by the user with their zkLogin key, so users never hold SUI.
 
 ### Frontend structure
 
@@ -200,7 +200,7 @@ app/           Next.js pages — compose stores and components only
 
 ### Three-layer currency
 
-**USDC** — all creator payments: tips, chapter purchases, bounty pools. Always shown as dollar amounts, never as crypto. Loaded via Transak on-ramp.
+**USDC** — all creator payments: tips, chapter purchases, bounty pools. Always shown as dollar amounts, never as crypto. Transfers are free on Sui and gas-sponsored, so users transact without holding SUI; users supply their own USDC, and a built-in fiat on/off-ramp is a future consideration, not part of the current platform.
 
 **INK** — platform engagement token. Earned only through reading; never purchasable. 10 INK per chapter, 100 INK per series completed, 50 INK for an approved submission. Used for DAO voting weight, and (Phase 3) gacha burns and prediction market stakes. Closed-loop at launch; DEX trading requires community governance vote.
 
@@ -298,27 +298,34 @@ pnpm dev               # runs on :3001
 **Backend (`.env`)**
 
 ```env
-# Database
+# Core
+NODE_ENV=development
+PORT=3000
 DATABASE_URL=postgresql://...
+CORS_ORIGIN=http://localhost:3001
+
+# Auth (user)
+JWT_SECRET=
+JWT_EXPIRES_IN=7d
+GOOGLE_CLIENT_ID=                 # Google OAuth client for zkLogin
+ZKLOGIN_PROVER_URL=https://prover-dev.mystenlabs.com/v1
 
 # Sui
 SUI_NETWORK=testnet
-SUI_RPC_URL=https://fullnode.testnet.sui.io
-ADMIN_PRIVATE_KEY=          # NestJS gas sponsor wallet
-PACKAGE_ID=                 # deployed arktion package object ID
-INK_TREASURY_CAP_ID=
-PASSPORT_ADMIN_CAP_ID=
-BADGE_ADMIN_CAP_ID=
-SUBMISSION_REGISTRY_ID=
-INK_EARNING_CONFIG_ID=
-
-# Auth
-ENOKI_API_KEY=              # Sui zkLogin salt service
-JWT_SECRET=
-JWT_EXPIRY=7d
+SUI_RPC_URL=https://fullnode.testnet.sui.io:443
+ADMIN_SECRET_KEY=                 # holds AdminCap; signs minting txs (bech32 suiprivkey1...)
+GAS_SPONSOR_SECRET_KEY=           # gas sponsor wallet; = ADMIN_SECRET_KEY in Phase 1
+SUI_PACKAGE_ID=                   # deployed arktion package object ID (current/upgraded)
+SUI_ADMIN_CAP_ID=
+SUI_ADMIN_REGISTRY_ID=
+SUI_INK_TREASURY_CAP_ID=
+SUI_EARNING_REGISTRY_ID=
+SUI_BADGE_REGISTRY_ID=
+SUI_USDC_COIN_TYPE=
+SUI_PASSPORT_CONFIG_ID=           # shared PassportConfig (admin pubkey for attested syncs)
 
 # Walrus
-WALRUS_PUBLISHER_URL=https://publisher.walrus-testnet.walrus.space
+WALRUS_UPLOAD_RELAY_URL=https://upload-relay.testnet.walrus.space
 WALRUS_AGGREGATOR_URL=https://aggregator.walrus-testnet.walrus.space
 
 # AI — MemWal and OpenRouter are both required for the writing assistant
@@ -328,8 +335,10 @@ MEMWAL_PRIVATE_KEY=
 MEMWAL_ACCOUNT_ID=
 MEMWAL_SERVER_URL=https://relayer-staging.memory.walrus.xyz
 
-# Admin
-TOTP_ENCRYPTION_KEY=
+# Admin auth (separate secret from the user JWT)
+ADMIN_JWT_SECRET=
+TOTP_ISSUER=Arktion Admin
+TOTP_ENCRYPTION_KEY=              # 64 hex chars (32-byte AES-256-GCM key)
 ```
 
 **Frontend (`.env.local`)**
