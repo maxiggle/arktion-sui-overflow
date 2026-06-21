@@ -18,7 +18,7 @@ description: "Stack, data flow, smart contracts, and the reasoning behind choosi
 ## How It Fits Together
 
 <Frame caption="Arktion system architecture — Next.js → NestJS → Postgres / Sui / Walrus">
-  <img src="/architecture-system.svg" alt="Arktion system architecture diagram" />
+  <img src="/architecture-system.png" alt="Arktion system architecture diagram" />
 </Frame>
 
 The backend is the sole point of contact with the blockchain — it constructs, sponsors, and submits every Sui PTB. For admin-only actions (passport minting, INK and badge minting) NestJS both builds and signs. For actions on a user-owned object (USDC tips/transfers, anchoring passport stats on-chain) the backend builds and sponsors the transaction, the user signs it with their zkLogin key, and the backend co-signs as gas sponsor and submits — so the user never holds SUI and never leaves the app to a wallet.
