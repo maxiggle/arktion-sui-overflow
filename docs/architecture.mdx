@@ -17,17 +17,11 @@ description: "Stack, data flow, smart contracts, and the reasoning behind choosi
 
 ## How It Fits Together
 
-```
-Next.js (port 3001)
-    ↓ REST /api/v1
-NestJS (port 3000)
-    ↓ Prisma          ↓ Sui SDK
-PostgreSQL         Sui testnet
-                       ↕
-                    Walrus
-```
+<Frame caption="Arktion system architecture — Next.js → NestJS → Postgres / Sui / Walrus">
+  <img src="/architecture-system.svg" alt="Arktion system architecture diagram" />
+</Frame>
 
-The backend is the sole point of contact with the blockchain. The frontend never constructs or signs transactions — NestJS constructs, sponsors, and submits every Sui PTB on behalf of the user.
+The backend is the sole point of contact with the blockchain — it constructs, sponsors, and submits every Sui PTB. For admin-only actions (passport minting, INK and badge minting) NestJS both builds and signs. For actions on a user-owned object (USDC tips/transfers, anchoring passport stats on-chain) the backend builds and sponsors the transaction, the user signs it with their zkLogin key, and the backend co-signs as gas sponsor and submits — so the user never holds SUI and never leaves the app to a wallet.
 
 ## Frontend Structure
 
@@ -64,7 +58,7 @@ app/           Next.js pages — compose stores and components only
 
 **zkLogin** — the only production-ready invisible wallet. Users sign in with Google and receive a Sui wallet with no seed phrase and no crypto UX.
 
-**Sponsored transactions** — NestJS sponsors the transactions that require it: passport minting and INK minting/transfers. USDC transfers are free on Sui and need no sponsorship.
+**Sponsored transactions** — NestJS sponsors the transactions that require it: admin-signed passport/INK/badge minting, and the user-signed passport stat sync (the reader signs with zkLogin, the backend pays gas). USDC tips and transfers are free on Sui, so the user simply signs and submits them directly.
 
 **Move's type system** — soul-bound badges are non-transferable because the Move type system enforces it at the language level, not as a policy check.
 

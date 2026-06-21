@@ -90,7 +90,7 @@ The top tier. Reserved for the most dedicated platform readers and contributors.
 
 ## When the Passport Is Updated
 
-The passport object lives on Sui (owned by the user's wallet) and is mirrored in Postgres. The Postgres mirror is the fast-path read — updated immediately on every qualifying action. The on-chain object is updated by admin-signed transactions (Phase 1).
+The passport object lives on Sui (owned by the user's wallet) and is mirrored in Postgres. The Postgres mirror is the fast-path read — updated immediately on every qualifying action — and powers the live, dynamic passport image. The on-chain object's fields are advanced separately by the reader, via the attested sync described in [Anchoring Stats On-Chain](#anchoring-stats-on-chain).
 
 **On series added to library**
 - `seriesTracked + 1`
@@ -110,6 +110,24 @@ The passport object lives on Sui (owned by the user's wallet) and is mirrored in
 - `identityBlobId` updated with the new Walrus blob ID
 - The snapshot includes the full reading history, journal entries, and passport stats at that point in time
 - Phase 1: the blob ID is stored in Postgres only. On-chain anchoring via `passport::set_blob_id` is deferred to Batch 4.
+
+## Anchoring Stats On-Chain
+
+The passport is **owned by the reader's wallet**, so only the reader can mutate it — but the stats themselves must stay trustworthy (the platform, not the user, decides level and INK). Arktion resolves this with an **admin-attested, user-signed** transaction:
+
+<Steps>
+  <Step title="Admin attests the values">
+    The backend signs the exact totals (`chapters_read`, `series_completed`, `series_tracked`, `total_ink_earned` + the passport's object id) with its Ed25519 key — an off-chain signature over the BCS-encoded payload.
+  </Step>
+  <Step title="Reader signs the transaction">
+    The reader taps **Anchor on-chain** and signs the transaction with their zkLogin key. They own the passport, so they're the valid sender; the backend sponsors the gas.
+  </Step>
+  <Step title="The contract verifies and writes">
+    `passport::update_stats_attested` verifies the admin signature against the stored `PassportConfig` public key, enforces that totals only ever move forward (replay/rollback protection without a nonce), then writes the fields, recomputes the level, and emits `StatsUpdated`.
+  </Step>
+</Steps>
+
+This keeps all three guarantees at once: the passport stays in the reader's wallet (no `AdminCap` in the transaction), the reader signs and pays nothing, and the numbers can't be forged — only the admin can produce a valid attestation. It shipped as a **package upgrade**, so existing passports were not re-minted.
 
 ## Idempotency
 

@@ -10,7 +10,8 @@ description: "Phase 1 hackathon scope — everything shipped for Sui Overflow 20
 ## Authentication & Identity
 
 - **Google OAuth with invisible Sui wallet** via zkLogin — no seed phrase, no browser extension, no crypto knowledge required.
-- **ArktionPassport** minted on first login — soul-bound NFT accumulating reading history, INK balance, badges, and level; non-transferable at the Move type level.
+- **ArktionPassport** minted on first login — soul-bound NFT accumulating reading history, INK balance, badges, and level; non-transferable at the Move type level. Its image is a live SVG that re-renders with the reader's current level and stats.
+- **On-chain stat sync** — readers can anchor their current stats onto the passport NFT with a single zkLogin signature (gas sponsored). The values are admin-attested so they can't be forged, while the passport stays owned by the reader. See [Anchoring Stats On-Chain](/ink-system#anchoring-stats-on-chain).
 - **Six reader levels** (Wanderer → Arktion Elder) based on INK earned, not spent — no pay-to-win.
 
 ## Reading

@@ -70,6 +70,7 @@ Because the backend submits on users' behalf and networks retry, every value-mov
 - **INK minting** uses a deterministic key (`ink:{userId}:{trigger}:{seriesId}:{context}`) checked in Postgres first; the `ink_earning` Move contract **also** enforces it on-chain, so a milestone can never be double-minted even if the Postgres mirror drifts.
 - **Tips and sends** carry a client idempotency key with a unique DB constraint; a retried request returns the existing pending record instead of creating a duplicate, and the on-chain layer rejects a replayed signed transaction.
 - **Reading progress is monotonic** — it only ever moves forward, so an automatic re-read can't regress a reader's history or re-fire earned milestones.
+- **On-chain passport stats are admin-attested.** The passport is owned by the reader, so they sign the update — but the values are signed off-chain by the admin key and verified on-chain (Ed25519) against a stored public key, with a monotonic guard against replay. A reader can submit and pay nothing, but cannot forge a higher level or fake INK.
 
 ## Input Handling
 
