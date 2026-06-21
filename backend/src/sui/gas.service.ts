@@ -111,28 +111,28 @@ export class GasService implements OnModuleInit {
   ): Promise<{ txBytes: string }> {
     await this.assertTreasuryHealthy();
 
-    // Step 1 — extract just the transaction kind, no gas or sender attached.
-    const kindBytes = await tx.build({
-      client: this.sui.client,
-      onlyTransactionKind: true,
-    });
+    if (!/^0x[0-9a-fA-F]{64}$/.test(senderAddress)) {
+      throw new Error(
+        `Invalid sender address for sponsored transaction: "${senderAddress}". ` +
+          `A 32-byte Sui address is required (got an empty or malformed value).`,
+      );
+    }
 
-    // Step 2 — wrap in a full transaction with sponsor as gas payer.
-    const sponsored = Transaction.fromKind(kindBytes);
-    sponsored.setSender(senderAddress);
-    sponsored.setGasOwner(this.sui.gasAddress);
-
-    // Step 3 — fetch gas coins from the sponsor wallet and set them explicitly.
-    // listCoins returns the sponsor's SUI coins; we take the first (largest
-    // after automatic merge by the SDK).
-    // listCoins returns { objects: Coin[] } per SuiClientTypes.ListCoinsResponse
+    // The backend builds the whole transaction — it knows both the user-sender
+    // and the gas sponsor — so set sender + gas owner directly on this tx and
+    // build it. The user signs as sender; the sponsor co-signs as gas owner.
+    // (The onlyTransactionKind/fromKind split is only needed when the two
+    // parties build separately; doing it here dropped the sender → 0x0.)
     const { objects: gasCoins } = await this.sui.client.listCoins({
       owner: this.sui.gasAddress,
     });
     if (gasCoins.length === 0) {
       throw new ServiceUnavailableException('Gas treasury has no SUI coins');
     }
-    sponsored.setGasPayment(
+
+    tx.setSender(senderAddress);
+    tx.setGasOwner(this.sui.gasAddress);
+    tx.setGasPayment(
       gasCoins.map((c) => ({
         objectId: c.objectId,
         version: c.version,
@@ -140,7 +140,7 @@ export class GasService implements OnModuleInit {
       })),
     );
 
-    const bytes = await sponsored.build({ client: this.sui.client });
+    const bytes = await tx.build({ client: this.sui.client });
     return { txBytes: Buffer.from(bytes).toString('base64') };
   }
 
