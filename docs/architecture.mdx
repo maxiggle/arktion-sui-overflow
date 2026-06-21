@@ -13,7 +13,7 @@ description: "Stack, data flow, smart contracts, and the reasoning behind choosi
 | Blockchain   | Sui testnet, Move smart contracts                                        |
 | Blob Storage | Walrus (decentralized, content-addressed)                                |
 | AI           | OpenRouter API + MemWal (Walrus Memory)                                  |
-| Payments     | USDC on Sui (Transak on/off-ramp in Phase 2)                             |
+| Payments     | USDC on Sui (gas-sponsored transfers)                                    |
 
 ## How It Fits Together
 
@@ -35,7 +35,7 @@ app/           Next.js pages — compose stores and components only
 
 ## Three-Layer Currency
 
-**USDC** — all creator payments: tips, chapter purchases, bounty pools. Always shown as dollar amounts, never as crypto. Loaded via Transak on-ramp (Phase 2).
+**USDC** — all creator payments: tips, chapter purchases, bounty pools. Always shown as dollar amounts, never as crypto. Transfers are free on Sui and gas-sponsored, so users transact without holding SUI. Users supply their own USDC to the Sui wallet; a built-in fiat on/off-ramp is a future consideration, not part of the current platform.
 
 **INK** — platform engagement token. Earned only through reading; never purchasable. 10 INK per chapter milestone, 100 INK per series completed, 50 INK for an approved submission. Used for DAO voting weight, and (Phase 3) gacha burns and prediction market stakes. Closed-loop at launch; DEX trading requires community governance vote.
 

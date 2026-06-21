@@ -5,6 +5,9 @@ import { Separator } from "@/components/ui/separator";
 import { PublicMobileNav } from "@/components/site/public-mobile-nav";
 import { PublicHeaderActions } from "@/components/site/auth-nav-actions";
 
+/** Public Mintlify documentation site. */
+const DOCS_URL = "https://arktion.mintlify.app";
+
 export function PublicShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -60,11 +63,18 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
               </div>
             </div>
             <div className="space-y-3 text-sm">
-              <p className="font-medium">Legal</p>
+              <p className="font-medium">Resources</p>
               <div className="flex flex-col gap-2 text-muted-foreground">
+                <a
+                  href={DOCS_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="transition-colors hover:text-foreground"
+                >
+                  Docs
+                </a>
                 <Link href="/privacy">Privacy</Link>
                 <Link href="/terms">Terms</Link>
-                <Link href="/auth/callback">Callback</Link>
               </div>
             </div>
           </div>
